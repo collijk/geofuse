@@ -34,12 +34,6 @@ pip install geofuse
 poetry install
 ```
 
-* Activate the virtual environment
-
-```sh
-poetry shell
-```
-
 ### Testing
 
 ```sh
