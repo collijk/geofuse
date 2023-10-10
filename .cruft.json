@@ -1,0 +1,18 @@
+{
+  "template": "https://github.com/collijk/python-package-cookiecutter",
+  "commit": "437dac2d8f1d7e404723d632e38a0e1f56d29337",
+  "checkout": null,
+  "context": {
+    "cookiecutter": {
+      "author_name": "James Collins",
+      "author_email": "collijk1@gmail.com",
+      "github_username": "collijk",
+      "project_name": "GeoFuse",
+      "project_slug": "geofuse",
+      "package_name": "geofuse",
+      "project_short_description": "GeoFuse leverages geocoding APIs, fuzzy string matching, and administrative boundary data to provide approximate geocoding for a data source.",
+      "_template": "https://github.com/collijk/python-package-cookiecutter"
+    }
+  },
+  "directory": null
+}
