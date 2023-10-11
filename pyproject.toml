@@ -18,10 +18,6 @@ classifiers = [
   "Operating System :: OS Independent",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.7",
-  "Programming Language :: Python :: 3.8",
-  "Programming Language :: Python :: 3.9",
-  "Topic :: Software Development :: Libraries :: Python Modules",
   "Typing :: Typed",
 ]
 
@@ -30,7 +26,13 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.7.1, <4.0"
+python = ">=3.10, <4.0"
+pydantic = "^2.4.2"
+shapely = "^2.0.1"
+geopandas = "^0.14.0"
+googlemaps = "^4.10.0"
+azure-maps-search = "^1.0.0b2"
+joblib = "^1.3.2"
 
 [tool.poetry.dev-dependencies]
 autoflake = "*"
@@ -65,7 +67,7 @@ profile = "black"
 src_paths = ["src", "tests"]
 
 [tool.black]
-target-version = ["py37", "py38", "py39"]
+target-version = ["py310", "py311", "py312"]
 include = '\.pyi?$'
 
 [tool.pytest.ini_options]
@@ -84,7 +86,7 @@ exclude_lines = [
 ]
 
 [tool.mypy]
-disallow_any_unimported = true
+disallow_any_unimported = false
 disallow_untyped_defs = true
 no_implicit_optional = true
 strict_equality = true
@@ -93,3 +95,16 @@ warn_redundant_casts = true
 warn_return_any = true
 check_untyped_defs = true
 show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "shapely",
+    "googlemaps",
+    "joblib",
+    "azure.maps.search",
+    "azure.maps.search.models",
+]
+ignore_missing_imports = true
+
+[tool.tryceratops]
+ignore=["TRY003"]
