@@ -223,6 +223,10 @@ class GoogleGeocoder(Geocoder):
         self._client = googlemaps.Client(key=self._api_key)
         self._geocode = memory.cache(ignore=["client"])(google_geocode)
 
+    @property
+    def name(self) -> str:
+        return "google"
+
     def geocode(self, request: GeocodeRequest) -> list[GeocodeResponse]:
         google_request = GoogleGeocodeRequest.from_base_request(request)
         response = self._geocode(self._client, **google_request.model_dump())

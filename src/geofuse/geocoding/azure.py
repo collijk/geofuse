@@ -8,7 +8,13 @@ from joblib import Memory
 from pydantic import AliasPath, BaseModel, ConfigDict, Field
 
 from geofuse.config import GeoFuseConfig
-from geofuse.geocoding.model import BoundingBox, GeocodeRequest, GeocodeResponse, Point
+from geofuse.geocoding.model import (
+    BoundingBox,
+    Geocoder,
+    GeocodeRequest,
+    GeocodeResponse,
+    Point,
+)
 
 
 class AzureType(str, enum.Enum):
@@ -139,7 +145,7 @@ def azure_geocode(client: MapsSearchClient, *_: Any, **kwargs: Any) -> Any:
     return client.search_address(**kwargs)
 
 
-class AzureGeocoder:
+class AzureGeocoder(Geocoder):
     def __init__(self, config: GeoFuseConfig):
         if config.azure_api_key is None:
             raise ValueError("Azure API key is not set.")
@@ -147,6 +153,10 @@ class AzureGeocoder:
         self._api_key = config.azure_api_key
         self._client = MapsSearchClient(credential=AzureKeyCredential(self._api_key))
         self._geocode = memory.cache(ignore=["client"])(azure_geocode)
+
+    @property
+    def name(self) -> str:
+        return "azure"
 
     def geocode(self, request: GeocodeRequest) -> list[GeocodeResponse]:
         azure_request = AzureGeocodeRequest.from_base_request(request)
