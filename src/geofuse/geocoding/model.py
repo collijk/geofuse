@@ -87,8 +87,8 @@ class GeocodeResponse(BaseModel):
 
 
 class Geocoder(abc.ABC):
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def name(self) -> str:
         pass
 
