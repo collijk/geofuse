@@ -108,3 +108,6 @@ ignore_missing_imports = true
 
 [tool.tryceratops]
 ignore=["TRY003"]
+
+[tool.autoflake]
+ignore-init-module-imports = true
