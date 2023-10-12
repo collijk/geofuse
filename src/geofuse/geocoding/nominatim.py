@@ -3,7 +3,7 @@ from typing import Any
 
 from geopy.geocoders import Nominatim
 from joblib import Memory
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from geofuse.config import GeoFuseConfig
 from geofuse.geocoding.model import (
@@ -20,15 +20,26 @@ class NominatimGeocodeRequest(BaseModel):
 
     query: str
     exactly_one: bool = False
-    address_details: bool = Field(default=False, validation_alias="addressdetails")
+    address_details: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("addressdetails", "address_details"),
+    )
     language: str = "en"
     geometry: str | None = None
-    extra_tags: bool = Field(default=False, validation_alias="extratags")
+    extra_tags: bool = Field(
+        default=False, validation_alias=AliasChoices("extratags", "extra_tags")
+    )
     country_codes: str | list[str] | None = None
-    view_box: tuple | None = Field(default=None, validation_alias="viewbox")
+    view_box: tuple | None = Field(
+        default=None, validation_alias=AliasChoices("viewbox", "view_box")
+    )
     bounded: bool = False
-    feature_type: str | None = Field(default=None, validation_alias="featuretype")
-    name_details: bool = Field(default=False, validation_alias="namedetails")
+    feature_type: str | None = Field(
+        default=None, validation_alias=AliasChoices("featuretype", "feature_type")
+    )
+    name_details: bool = Field(
+        default=False, validation_alias=AliasChoices("namedetails", "name_details")
+    )
 
     @classmethod
     def from_base_request(cls, request: GeocodeRequest) -> "NominatimGeocodeRequest":
@@ -63,10 +74,14 @@ class NominatimGeocodeResponse(BaseModel):
     type: str
     place_rank: int
     importance: float
-    address_type: str = Field(..., validation_alias="addresstype")
+    address_type: str = Field(
+        ..., validation_alias=AliasChoices("addresstype", "address_type")
+    )
     name: str
     display_name: str
-    bounding_box: list[str] = Field(..., validation_alias="boundingbox")
+    bounding_box: list[str] = Field(
+        ..., validation_alias=AliasChoices("boundingbox", "bounding_box")
+    )
 
     def to_base_response(self, *args: Any, **kwargs: Any) -> GeocodeResponse:
         position = Point(
