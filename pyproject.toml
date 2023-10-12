@@ -37,6 +37,7 @@ rapidfuzz = "^3.4.0"
 numpy = "^1.26.0"
 pandas = "^2.1.1"
 pandera = "^0.17.2"
+tqdm = "^4.66.1"
 
 [tool.poetry.dev-dependencies]
 autoflake = "*"
@@ -62,6 +63,7 @@ python-kacl = "*"
 pyupgrade = "*"
 tryceratops = "*"
 pandas-stubs = "*"
+types-tqdm = "*"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

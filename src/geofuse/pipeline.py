@@ -3,6 +3,7 @@ import unicodedata
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pandera as pa
 
 from geofuse import (
     AzureGeocoder,
@@ -12,6 +13,34 @@ from geofuse import (
     GoogleGeocoder,
     Point,
 )
+
+
+def prepare_input_data(
+    input_df: pd.DataFrame,
+    value_cols: list[str],
+    best_bounding_geometry: tuple[str, str],
+) -> pd.DataFrame:
+    input_schema = pa.DataFrameSchema(
+        columns={
+            "location_id": pa.Column(str, unique=True),
+            "parent_id": pa.Column(str),
+            "location_name": pa.Column(str),
+            "level": pa.Column(int),
+            **{col: pa.Column(float, coerce=True) for col in value_cols},
+        },
+    )
+    input_df = input_schema.validate(input_df)
+    input_df = input_df.set_index("location_id")
+    input_df["location_name_simple"] = input_df.location_name.apply(normalize_string)
+    parent_map = input_df.set_index("location_id").parent_id
+    input_df["path_to_top_parent"] = input_df.location_id.apply(
+        lambda x: make_path_to_top_parent(x, parent_map),
+    )
+    bounding_loc_id, bounding_shape_id = best_bounding_geometry
+    input_df["best_bounding_geometry"] = bounding_shape_id
+    input_df["geometry"] = None
+    input_df.loc[bounding_loc_id, "geometry"] = bounding_shape_id
+    return input_df
 
 
 def make_path_to_top_parent(location_id: str, parent_map: pd.Series) -> str:
@@ -28,11 +57,12 @@ def normalize_string(s: str) -> str:
     return ascii_s.replace("_", " ")
 
 
-def check_if_parent(location: dict, parent: dict) -> None:
-    if np.abs(parent["population_total"] - location["population_total"]) < 1e-6:
-        raise NotImplementedError(
-            f'{location["location_name_simple"]} likely same as parent {parent["location_name_simple"]}'
-        )
+def is_parent(location: dict, parent: dict, value_cols: list[str]) -> bool:
+    tolerance = 1e-6
+    return (
+        all(np.abs(location[col] - parent[col]) < tolerance for col in value_cols)
+        and location["level"] == parent["level"] + 1
+    )
 
 
 def get_shapes_to_search(
