@@ -5,12 +5,12 @@ from geopy.geocoders import Nominatim
 from joblib import Memory
 from pydantic import BaseModel, ConfigDict, Field
 
-from geofuse import (
+from geofuse.config import GeoFuseConfig
+from geofuse.geocoding.model import (
     BoundingBox,
     Geocoder,
     GeocodeRequest,
     GeocodeResponse,
-    GeoFuseConfig,
     Point,
 )
 
