@@ -22,10 +22,10 @@ def prepare_input_data(
 ) -> pd.DataFrame:
     input_schema = pa.DataFrameSchema(
         columns={
-            "location_id": pa.Column(str, unique=True),
-            "parent_id": pa.Column(str),
+            "location_id": pa.Column(str, unique=True, coerce=True),
+            "parent_id": pa.Column(str, coerce=True),
             "location_name": pa.Column(str),
-            "level": pa.Column(int),
+            "level": pa.Column(int, coerce=True),
             **{col: pa.Column(float, coerce=True) for col in value_cols},
         },
     )
