@@ -6,5 +6,6 @@ from geofuse.geocoding import (
     GeocodeRequest,
     GeocodeResponse,
     GoogleGeocoder,
+    NominatimGeocoder,
     Point,
 )

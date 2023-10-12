@@ -7,3 +7,4 @@ from geofuse.geocoding.model import (
     GeocodeResponse,
     Point,
 )
+from geofuse.geocoding.nominatim import NominatimGeocoder

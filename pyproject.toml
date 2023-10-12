@@ -38,6 +38,7 @@ numpy = "^1.26.0"
 pandas = "^2.1.1"
 pandera = "^0.17.2"
 tqdm = "^4.66.1"
+geopy = "^2.4.0"
 
 [tool.poetry.dev-dependencies]
 autoflake = "*"
@@ -111,6 +112,7 @@ module = [
     "joblib",
     "azure.maps.search",
     "azure.maps.search.models",
+    "geopy.*"
 ]
 ignore_missing_imports = true
 

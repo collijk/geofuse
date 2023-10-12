@@ -11,6 +11,7 @@ from geofuse import (
     GeocodeRequest,
     GeoFuseConfig,
     GoogleGeocoder,
+    NominatimGeocoder,
     Point,
 )
 
@@ -40,7 +41,7 @@ def prepare_input_data(
     input_df["geometry"] = None
     input_df = input_df.set_index("location_id")
     input_df.loc[bounding_loc_id, "geometry"] = bounding_shape_id
-    return input_df.sort_values(['level', 'path_to_top_parent'])
+    return input_df.sort_values(["level", "path_to_top_parent"])
 
 
 def make_path_to_top_parent(
@@ -111,6 +112,7 @@ def geocode_location(
     geocoders = [
         ("google", GoogleGeocoder(config=config)),
         ("azure", AzureGeocoder(config=config)),
+        ("nominatim", NominatimGeocoder(config=config)),
     ]
     address_formats = [
         ("loc", location_name.title()),
