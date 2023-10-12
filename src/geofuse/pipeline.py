@@ -32,19 +32,26 @@ def prepare_input_data(
     input_df = input_schema.validate(input_df)
     input_df["location_name_simple"] = input_df.location_name.apply(normalize_string)
     parent_map = input_df.set_index("location_id").parent_id
-    input_df["path_to_top_parent"] = input_df.location_id.apply(
-        lambda x: make_path_to_top_parent(x, parent_map),
-    )
     bounding_loc_id, bounding_shape_id = best_bounding_geometry
+    input_df["path_to_top_parent"] = input_df.location_id.apply(
+        lambda x: make_path_to_top_parent(x, parent_map, bounding_loc_id),
+    )
     input_df["best_bounding_geometry"] = bounding_shape_id
     input_df["geometry"] = None
     input_df.loc[bounding_loc_id, "geometry"] = bounding_shape_id
     return input_df.set_index("location_id")
 
 
-def make_path_to_top_parent(location_id: str, parent_map: pd.Series) -> str:
+def make_path_to_top_parent(
+    location_id: str, parent_map: pd.Series, top_location_id: str | None = None
+) -> str:
+    if top_location_id is None:
+        top_mask = parent_map.index.values == parent_map.values
+        assert top_mask.sum() == 1
+        top_location_id = parent_map[top_mask].index[0]
+
     path_to_top_parent = [location_id]
-    while location_id != parent_map[location_id]:
+    while location_id != top_location_id:
         location_id = parent_map[location_id]
         path_to_top_parent.append(location_id)
     return ",".join([str(x) for x in reversed(path_to_top_parent)])
