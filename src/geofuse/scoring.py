@@ -16,7 +16,7 @@ def score_names(location_name: str, names_to_search: list[str]) -> np.ndarray:
 
 
 def score_area(location_area: float, areas_to_search: pd.Series) -> pd.Series:
-    return np.minimum(np.abs(areas_to_search - location_area) / location_area, 1)
+    return np.maximum(1 - areas_to_search / location_area, 1 - location_area / areas_to_search)
 
 
 def score_geocoding_results(
