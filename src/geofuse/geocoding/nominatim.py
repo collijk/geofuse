@@ -3,7 +3,7 @@ from typing import Any
 
 from geopy.geocoders import Nominatim
 from joblib import Memory
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from geofuse.config import GeoFuseConfig
 from geofuse.geocoding.model import (
@@ -20,26 +20,15 @@ class NominatimGeocodeRequest(BaseModel):
 
     query: str
     exactly_one: bool = False
-    address_details: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("addressdetails", "address_details"),
-    )
+    addressdetails: bool = False
     language: str = "en"
     geometry: str | None = None
-    extra_tags: bool = Field(
-        default=False, validation_alias=AliasChoices("extratags", "extra_tags")
-    )
+    extratags: bool = False
     country_codes: str | list[str] | None = None
-    view_box: tuple | None = Field(
-        default=None, validation_alias=AliasChoices("viewbox", "view_box")
-    )
+    viewbox: tuple | None = None
     bounded: bool = False
-    feature_type: str | None = Field(
-        default=None, validation_alias=AliasChoices("featuretype", "feature_type")
-    )
-    name_details: bool = Field(
-        default=False, validation_alias=AliasChoices("namedetails", "name_details")
-    )
+    featuretype: str | None = None
+    namedetails: bool = False
 
     @classmethod
     def from_base_request(cls, request: GeocodeRequest) -> "NominatimGeocodeRequest":
@@ -57,7 +46,7 @@ class NominatimGeocodeRequest(BaseModel):
         return cls(
             query=request.query,
             country_codes=country_codes,
-            view_box=view_box,
+            viewbox=view_box,
         )
 
 
@@ -74,14 +63,10 @@ class NominatimGeocodeResponse(BaseModel):
     type: str
     place_rank: int
     importance: float
-    address_type: str = Field(
-        ..., validation_alias=AliasChoices("addresstype", "address_type")
-    )
+    addresstype: str
     name: str
     display_name: str
-    bounding_box: list[str] = Field(
-        ..., validation_alias=AliasChoices("boundingbox", "bounding_box")
-    )
+    boundingbox: list[str]
 
     def to_base_response(self, *args: Any, **kwargs: Any) -> GeocodeResponse:
         position = Point(
@@ -89,12 +74,12 @@ class NominatimGeocodeResponse(BaseModel):
             lng=float(self.lon),
         )
         northwest = Point(
-            lat=float(self.bounding_box[0]),
-            lng=float(self.bounding_box[2]),
+            lat=float(self.boundingbox[0]),
+            lng=float(self.boundingbox[2]),
         )
         southeast = Point(
-            lat=float(self.bounding_box[1]),
-            lng=float(self.bounding_box[3]),
+            lat=float(self.boundingbox[1]),
+            lng=float(self.boundingbox[3]),
         )
         bbox = BoundingBox(northwest=northwest, southeast=southeast)  # type: ignore[call-arg]
 
