@@ -12,17 +12,20 @@ def run_pipeline(
     current_shapes: gpd.GeoDataFrame,
     candidate_shapes: gpd.GeoDataFrame,
     config: GeoFuseConfig,
-) -> None:
-    gdf = pipeline.prepare_input_data(
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    df = pipeline.prepare_input_data(
         input_df,
         value_cols=value_cols,
         best_bounding_geometry=best_bounding_geometry,
     )
 
     geocoding_results = []
-    for location_id in tqdm.tqdm(gdf.index):
-        location = gdf.loc[location_id].to_dict()
-        parent = gdf.loc[location["parent_id"]].to_dict()
+    for location_id in tqdm.tqdm(df.index[1:]):
+        if df.loc[location_id, "geometry"] is not None:
+            continue
+
+        location = df.loc[location_id].to_dict()
+        parent = df.loc[location["parent_id"]].to_dict()
 
         if pipeline.is_parent(location, parent, value_cols):
             continue
@@ -95,9 +98,11 @@ def run_pipeline(
             shape_pttp = shapes_to_search.set_index("shape_id").at[
                 shape_id, "path_to_top_parent"
             ]
-            gdf.at[location_id, "geometry"] = shape_pttp
+            df.at[location_id, "geometry"] = shape_pttp
             # Update children bounding geometry
-            children = gdf.path_to_top_parent.str.contains(
+            children = df.path_to_top_parent.str.contains(
                 location["path_to_top_parent"]
             )
-            gdf.loc[children, "best_bounding_geometry"] = shape_pttp
+            df.loc[children, "best_bounding_geometry"] = shape_pttp
+
+    return df, pd.concat(geocoding_results)

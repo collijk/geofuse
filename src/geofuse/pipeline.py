@@ -39,7 +39,7 @@ def prepare_input_data(
     input_df["best_bounding_geometry"] = bounding_shape_id
     input_df["geometry"] = None
     input_df.loc[bounding_loc_id, "geometry"] = bounding_shape_id
-    return input_df.set_index("location_id")
+    return input_df.set_index("location_id").sort_values("path_to_top_parent")
 
 
 def make_path_to_top_parent(
