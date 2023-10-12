@@ -30,7 +30,6 @@ def prepare_input_data(
         },
     )
     input_df = input_schema.validate(input_df)
-    input_df = input_df.set_index("location_id")
     input_df["location_name_simple"] = input_df.location_name.apply(normalize_string)
     parent_map = input_df.set_index("location_id").parent_id
     input_df["path_to_top_parent"] = input_df.location_id.apply(
@@ -40,7 +39,7 @@ def prepare_input_data(
     input_df["best_bounding_geometry"] = bounding_shape_id
     input_df["geometry"] = None
     input_df.loc[bounding_loc_id, "geometry"] = bounding_shape_id
-    return input_df
+    return input_df.set_index("location_id")
 
 
 def make_path_to_top_parent(location_id: str, parent_map: pd.Series) -> str:
