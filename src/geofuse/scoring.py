@@ -39,7 +39,7 @@ def score_geocoding_results(
                 },
                 index=geocodes.index,
             ),
-        ]
+        ], axis=1
     )
 
     shape_scores = pd.DataFrame(

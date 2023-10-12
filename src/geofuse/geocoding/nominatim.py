@@ -99,7 +99,7 @@ def nominatim_geocode(client: Nominatim, *_: Any, **kwargs: Any) -> Any:
     sleep_time = request_period - (time.time() - start)
     if sleep_time > 0:
         time.sleep(sleep_time)
-    return results
+    return results if results else []
 
 
 class NominatimGeocoder(Geocoder):
