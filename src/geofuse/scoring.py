@@ -1,18 +1,24 @@
 import itertools
+import unicodedata
 
 import numpy as np
 import pandas as pd
-from rapidfuzz import process
-from rapidfuzz.distance import Levenshtein
+from rapidfuzz import fuzz
 
 
-def score_names(location_name: str, names_to_search: list[str]) -> np.ndarray:
-    return process.cdist(
-        queries=[location_name],
-        choices=names_to_search,
-        scorer=Levenshtein.normalized_distance,
-        score_cutoff=0.3,
-    )[0]
+def score_names(location_name: str, names_to_search: list[str]) -> pd.Series:
+    results = []
+    for name in names_to_search:
+        results.append(
+            fuzz.token_sort_ratio(location_name, name, processor=normalize_string)
+        )
+    return pd.Series(results, index=names_to_search)
+
+
+def normalize_string(s: str) -> str:
+    lower_s = s.lower()
+    ascii_s = unicodedata.normalize("NFKD", lower_s).encode("ascii", "ignore").decode()
+    return ascii_s.replace("_", " ")
 
 
 def score_area(location_area: float, areas_to_search: pd.Series) -> np.ndarray:
@@ -39,7 +45,8 @@ def score_geocoding_results(
                 },
                 index=geocodes.index,
             ),
-        ], axis=1
+        ],
+        axis=1,
     )
 
     shape_scores = pd.DataFrame(
@@ -60,11 +67,11 @@ def score_geocoding_results(
 
         address_score = score_names(
             location_name=address,
-            names_to_search=shapes_to_search.shape_name_simple.tolist(),
+            names_to_search=shapes_to_search.shape_name.tolist(),
         )
         location_name_score = score_names(
             location_name=loc_name,
-            names_to_search=shapes_to_search.shape_name_simple.tolist(),
+            names_to_search=shapes_to_search.shape_name.tolist(),
         )
         name_score = np.minimum(address_score, location_name_score)
         containment_score = (1 - shapes_to_search.contains(loc)).astype(float).values  # type: ignore[operator]

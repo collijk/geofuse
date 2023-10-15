@@ -1,5 +1,3 @@
-import unicodedata
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -31,7 +29,6 @@ def prepare_input_data(
         },
     )
     input_df = input_schema.validate(input_df)
-    input_df["location_name_simple"] = input_df.location_name.apply(normalize_string)
     parent_map = input_df.set_index("location_id").parent_id
     bounding_loc_id, bounding_shape_id = best_bounding_geometry
     input_df["path_to_top_parent"] = input_df.location_id.apply(
@@ -57,12 +54,6 @@ def make_path_to_top_parent(
         location_id = parent_map[location_id]
         path_to_top_parent.append(location_id)
     return ",".join([str(x) for x in reversed(path_to_top_parent)])
-
-
-def normalize_string(s: str) -> str:
-    lower_s = s.lower()
-    ascii_s = unicodedata.normalize("NFKD", lower_s).encode("ascii", "ignore").decode()
-    return ascii_s.replace("_", " ")
 
 
 def is_parent(location: dict, parent: dict, value_cols: list[str]) -> bool:

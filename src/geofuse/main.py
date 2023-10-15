@@ -50,9 +50,9 @@ def run_pipeline(
 
         # Look for name matches in search space. Score the matches
         scores["name_score"] = scoring.score_names(
-            location_name=location["location_name_simple"],
-            names_to_search=shapes_to_search.shape_name_simple.tolist(),
-        )
+            location_name=location["location_name"],
+            names_to_search=shapes_to_search.shape_name.tolist(),
+        ).values
 
         # Look for area matches in the search space.  Score the matches
         # FIXME: Need to allow metrics on value cols.
