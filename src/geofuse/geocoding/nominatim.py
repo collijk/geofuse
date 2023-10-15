@@ -105,7 +105,7 @@ def nominatim_geocode(client: Nominatim, *_: Any, **kwargs: Any) -> Any:
 class NominatimGeocoder(Geocoder):
     def __init__(self, config: GeoFuseConfig):
         memory = Memory(config.cache_path, verbose=config.cache_verbose)
-        self._client = Nominatim(user_agent="kenya_census_geocode")
+        self._client = Nominatim(user_agent=config.nominatim_user_agent)
         self._geocode = memory.cache(ignore=["client"])(nominatim_geocode)
 
     @property

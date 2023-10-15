@@ -8,3 +8,4 @@ class GeoFuseConfig(BaseModel):
     cache_verbose: int = 0
     google_api_key: str | None = None
     azure_api_key: str | None = None
+    nominatim_user_agent: str | None = None
