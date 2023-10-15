@@ -72,6 +72,8 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# Jupyter notebooks
+/notebooks
 # mypy
 .mypy_cache/
 
