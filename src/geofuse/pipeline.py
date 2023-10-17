@@ -65,8 +65,10 @@ def is_parent(location: dict, parent: dict, value_cols: list[str]) -> bool:
 
 
 def get_shapes_to_search(
-    location: dict, current_shapes: pd.DataFrame, candidate_shapes: pd.DataFrame
-) -> pd.DataFrame:
+    location: dict,
+    current_shapes: gpd.GeoDataFrame,
+    candidate_shapes: gpd.GeoDataFrame,
+) -> gpd.GeoDataFrame:
     bounding_geom = location["best_bounding_geometry"]
     mask = current_shapes.path_to_top_parent.str.contains(f"{bounding_geom},")
     shapes_to_search = current_shapes[mask]
@@ -101,9 +103,9 @@ def geocode_location(
     parent_name: str | None = None,
 ) -> gpd.GeoDataFrame:
     geocoders = [
-        ("google", GoogleGeocoder(config=config)),
-        ("azure", AzureGeocoder(config=config)),
-        ("nominatim", NominatimGeocoder(config=config)),
+        GoogleGeocoder(config=config),
+        AzureGeocoder(config=config),
+        NominatimGeocoder(config=config),
     ]
     address_formats = [
         ("loc", location_name.title()),
@@ -113,20 +115,11 @@ def geocode_location(
             ("parent", f"{location_name.title()}, {parent_name.title()}")
         )
 
-    boundary_formats = [
-        ("F", None),
-        ("T", parent_bounds),
-    ]
-    region_formats = [
-        ("F", None),
-        ("T", country_code),
-    ]
-
     results = []
-    for geocoder_label, geocoder in geocoders:
+    for geocoder in geocoders:
         for address_label, address in address_formats:
-            for _bounds_label, bounds in boundary_formats:
-                for _region_label, region in region_formats:
+            for bounds in [None, parent_bounds]:
+                for region in [None, country_code]:
                     request = GeocodeRequest(
                         query=address,
                         country_iso3=region,
@@ -134,7 +127,7 @@ def geocode_location(
                     )
                     response = geocoder.geocode(request)
                     inputs = [
-                        geocoder_label,
+                        geocoder.name,
                         address_label,
                         address,
                         region,
@@ -166,7 +159,4 @@ def geocode_location(
     )
     results_df["parent_bounds"] = parent_bounds.to_shapely()
     results_df["inside_parent_bounds"] = results_df.within(parent_bounds.to_shapely())
-    results_df["to_check"] = (
-        results_df.geometry.notnull() & results_df.inside_parent_bounds
-    )
     return results_df.to_crs("ESRI:54009")

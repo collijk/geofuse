@@ -12,14 +12,13 @@ def run_pipeline(
     current_shapes: gpd.GeoDataFrame,
     candidate_shapes: gpd.GeoDataFrame,
     config: GeoFuseConfig,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> pd.DataFrame:
     df = pipeline.prepare_input_data(
         input_df,
         value_cols=value_cols,
         best_bounding_geometry=best_bounding_geometry,
     )
 
-    geocoding_results = []
     for location_id in tqdm.tqdm(df.index[1:]):
         if df.loc[location_id, "geometry"] is not None:
             continue
@@ -69,20 +68,18 @@ def run_pipeline(
             parent_bounds=parent_bounds,
             parent_name=parent["location_name"],
         )
-        shape_scores, geocode_scores = scoring.score_geocoding_results(
+        shape_scores = scoring.score_geocoding_results(
             geocodes,
             shapes_to_search,
             parent,
         )
-        geocoding_results.append(geocode_scores)
 
         for c in shape_scores:
             scores[c] = shape_scores[c]
         weights = {
-            "name_score": 1,
-            "area_score": 2,
-            "geocode_name_score": 0.5,
-            "geocode_distance_score": 5,
+            "name_score": 1.0,
+            "area_score": 2.0,
+            "distance_score": 5.0,
         }
         scores["composite_score"] = scoring.compute_composite_score(scores, weights)
 
@@ -105,4 +102,4 @@ def run_pipeline(
             )
             df.loc[children, "best_bounding_geometry"] = shape_pttp
 
-    return df, pd.concat(geocoding_results)
+    return df
