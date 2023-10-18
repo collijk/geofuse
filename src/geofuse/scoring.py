@@ -50,20 +50,23 @@ def score_geocoding_results(
     shape_scores = []
     for _, geocode in geocodes.iterrows():
         # Skip null geometries and locations outside the parent bounds.
-        if pd.isnull(geocode["geometry"]) or not geocode["inside_parent_bounds"]:
+        if pd.isnull(geocode["geometry"]):
             continue
 
         loc = geocode["geometry"]
+        inside_parent_bounds = float(geocode['inside_parent_bounds'])
 
         if loc not in distance_score_cache:
             distance_score_cache[loc] = _score_geocoded_location(
-                loc, shapes_to_search, centroids, distance_scale
+                loc, inside_parent_bounds, shapes_to_search, centroids, distance_scale
             )
         geocode_score = distance_score_cache[loc].copy()
         geocode_score["confidence"] = geocode["confidence"]
         shape_scores.append(geocode_score)
 
-    return pd.concat(shape_scores)
+    out = pd.concat(shape_scores) if shape_scores else pd.DataFrame()
+
+    return out
 
 
 def _assess_geocode_confidence(geocodes: pd.DataFrame) -> np.ndarray:
@@ -72,12 +75,13 @@ def _assess_geocode_confidence(geocodes: pd.DataFrame) -> np.ndarray:
     for address in addresses:
         address_score = score_names(address, geocodes["location_name"].tolist())
         name_scores = np.minimum(name_scores, address_score.to_numpy())
-    name_scores = 1 / (0.01 + name_scores)
+    name_scores = 1 / (0.1 + name_scores)
     return np.maximum(name_scores, 1)
 
 
 def _score_geocoded_location(
     location: shapely.Point,
+    inside_parent_bounds: float,
     shapes_to_search: gpd.GeoDataFrame,
     shape_centroids: gpd.GeoSeries,
     distance_scale: float,
@@ -89,7 +93,7 @@ def _score_geocoded_location(
             "boundary": distance_scale * shapes_to_search.boundary.distance(location),
         }
     )
-    scores["distance"] = scores.min(axis=1)
+    scores["distance"] = scores.min(axis=1) + 0.8 * (1 - inside_parent_bounds)
     scores["level"] = shapes_to_search["level"]
     scores["path_to_top_parent"] = shapes_to_search["path_to_top_parent"]
     return scores.set_index("path_to_top_parent")

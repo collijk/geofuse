@@ -68,9 +68,13 @@ def get_shapes_to_search(
     location: dict,
     current_shapes: gpd.GeoDataFrame,
     candidate_shapes: gpd.GeoDataFrame,
+    found_shapes: list[str],
 ) -> gpd.GeoDataFrame:
     bounding_geom = location["best_bounding_geometry"]
-    mask = current_shapes.path_to_top_parent.str.contains(f"{bounding_geom},")
+    mask = (
+        current_shapes.path_to_top_parent.str.contains(f"{bounding_geom},") 
+        & ~current_shapes.shape_id.isin(found_shapes)
+    )
     shapes_to_search = current_shapes[mask]
     return shapes_to_search
 
@@ -125,7 +129,11 @@ def geocode_location(
                         country_iso3=region,
                         bounding_box=bounds,
                     )
-                    response = geocoder.geocode(request)
+                    try: 
+                        response = geocoder.geocode(request)
+                    except Exception as e:
+                        print(geocoder_label, " failure ", e)
+                        
                     inputs = [
                         geocoder.name,
                         address_label,
