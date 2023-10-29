@@ -2,32 +2,6 @@ import geopandas as gpd
 from shapely.geometry import MultiPolygon
 
 
-def fix_multipolygons(
-    gdf: gpd.GeoDataFrame,
-    buffer_size: float = 2**-16,
-    max_buffer_size: float = 2**-8,
-    verbose: bool = False,
-) -> gpd.GeoDataFrame:
-    # This will collapse multipolygons that emerge due to numerical
-    # imprecision. It also kind of screws up our overall fit though
-    trial_result = gdf["geometry"].copy()
-    multipolygons = trial_result.apply(lambda g: isinstance(g, MultiPolygon))
-    while multipolygons.any() and buffer_size <= max_buffer_size:
-        if verbose:
-            print("Fixing with buffer size ", buffer_size)
-        test_result = (
-            trial_result.loc[multipolygons].buffer(buffer_size).buffer(-buffer_size)
-        )
-        if (test_result.area == 0).any():
-            continue
-        trial_result.loc[multipolygons] = test_result
-        multipolygons = trial_result.apply(lambda g: isinstance(g, MultiPolygon))
-        buffer_size *= 2
-
-    gdf["geometry"] = trial_result
-    return gdf
-
-
 def clean_overlapping_geoms(data: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf = data.copy()
 

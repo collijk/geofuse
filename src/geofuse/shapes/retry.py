@@ -8,7 +8,7 @@ ExceptionType = Type[Exception]
 GDFTransformer = Callable[[gpd.GeoDataFrame], gpd.GeoDataFrame]
 
 
-def buffer_and_retry(
+def buffer_on_exception(
     retry_on: ExceptionType | tuple[ExceptionType],
     buffer_start: float = 2**-16,
     max_buffer: float = 2**-8,
@@ -18,12 +18,22 @@ def buffer_and_retry(
         def wrapper(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
             gdf: gpd.GeoDataFrame = gdf.copy()  # type: ignore
             buffer = buffer_start
+            should_fail = False
             while True:
                 try:
                     return func(gdf)
                 except retry_on as e:
                     if buffer > max_buffer:
-                        raise
+                        if should_fail:
+                            raise RuntimeError(
+                                f"Caught exception {e} in {func.__name__}, "
+                                f"max buffer size reached."
+                            ) from e
+                        else:
+                            # Try perturbing the buffer size to alter the resolution
+                            # of the geometry.
+                            buffer = buffer_start * 1.01
+                            should_fail = True
                     logger.debug(
                         f"Caught exception {e} in {func.__name__}, "
                         f"attempting to fix with buffer {buffer}"
@@ -49,10 +59,21 @@ def buffer_on_condition(
             buffer = buffer_start
 
             result = func(gdf)
+            should_fail = False
             while True:
                 if retry_on(result):
                     if buffer > max_buffer:
-                        raise
+                        if should_fail:
+                            raise RuntimeError(
+                                f"Retry condition {retry_on.__name__} "
+                                f"still met after max buffer size reached"
+                            )
+                        else:
+                            # This multipolygon business is mainly
+                            # about numerical precision, so we can try to get out
+                            # of it by perturbing the buffer size.
+                            buffer = buffer_start * 1.01
+                            should_fail = True
                     logger.debug(
                         f"Retry condition {retry_on.__name__} met for {func.__name__}, "
                         f"attempting to fix with buffer {buffer}"

@@ -4,7 +4,7 @@ from pandera.typing.geopandas import GeoSeries
 from shapely.errors import GEOSException
 
 from geofuse.model import DataFrameModel
-from geofuse.shapes.retry import buffer_and_retry
+from geofuse.shapes.retry import buffer_on_exception
 
 
 class DetailedSchema(DataFrameModel):
@@ -57,7 +57,7 @@ def partition_geoms(
     coarse: gpd.GeoDataFrame = CoarseSchema.validate(coarse)  # type: ignore
     detailed: gpd.GeoDataFrame = DetailedSchema.validate(detailed)  # type: ignore
 
-    @buffer_and_retry(GEOSException)
+    @buffer_on_exception(GEOSException)
     def _overlay(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         return coarse.overlay(gdf, how="identity", keep_geom_type=True)
 
