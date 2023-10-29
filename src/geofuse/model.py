@@ -1,4 +1,8 @@
+from typing import Union
+
 import pandera as pa
+
+NullableID = Union[int, float]
 
 
 class DataFrameModel(pa.DataFrameModel):
