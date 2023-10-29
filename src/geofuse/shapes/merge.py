@@ -99,18 +99,16 @@ def collapse_mergeable_geoms(
     gdf: gpd.GeoDataFrame,
     buffer_size: float = 10.0,
 ) -> gpd.GeoDataFrame:
-    result: gpd.GeoDataFrame = CollapsableSchema.validate(gdf)
+    gdf: gpd.GeoDataFrame = CollapsableSchema.validate(gdf)  # type: ignore
 
     # Set merge_id to a unique ID for non-mergeable geoms and None for mergeable geoms
-    result["merge_id"] = None
-    result.loc[~result.mergeable, "merge_id"] = list(
-        range(len(result.loc[~result.mergeable]))
-    )
+    gdf["merge_id"] = None
+    gdf.loc[~gdf.mergeable, "merge_id"] = list(range(len(gdf.loc[~gdf.mergeable])))
 
     # Split data into reference geoms (geoms we merge to)
     # and mergeable geoms (geoms we merge)
-    reference = result.loc[~result.mergeable]
-    mergeable = result.loc[result.mergeable]
+    reference = gdf.loc[~gdf.mergeable]
+    mergeable = gdf.loc[gdf.mergeable]
 
     overlap = pd.DataFrame({"merge_id": None, "overlap": 0.0}, index=mergeable.index)
     for merge_id, g in reference.set_index("merge_id").geometry.items():
@@ -127,8 +125,8 @@ def collapse_mergeable_geoms(
         overlap.loc[new_match, "merge_id"] = merge_id
         overlap.loc[new_match, "overlap"] = overlap_proportion
 
-    result.loc[overlap.index, "merge_id"] = overlap["merge_id"]
-    result = result.dissolve(by="merge_id")["geometry"]
+    gdf.loc[overlap.index, "merge_id"] = overlap["merge_id"]
+    result = gdf.dissolve(by="merge_id")["geometry"]
 
     reference = reference.set_index("merge_id")
     reference["geometry"] = result
