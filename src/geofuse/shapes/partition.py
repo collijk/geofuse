@@ -28,7 +28,7 @@ class OutputSchema(DataFrameModel):
     geometry: GeoSeries
 
 
-def partition_geoms(
+def partition_geometries(
     coarse: gpd.GeoDataFrame,
     detailed: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:

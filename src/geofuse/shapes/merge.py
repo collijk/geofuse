@@ -95,7 +95,7 @@ class CollapsedSchema(DataFrameModel):
     geometry: GeoSeries
 
 
-def collapse_mergeable_geoms(
+def collapse_mergeable_geometries(
     gdf: gpd.GeoDataFrame,
     buffer_size: float = 10.0,
 ) -> gpd.GeoDataFrame:
