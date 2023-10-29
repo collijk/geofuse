@@ -6,6 +6,7 @@ import pandera as pa
 from geofuse import (
     AzureGeocoder,
     BoundingBox,
+    Geocoder,
     GeocodeRequest,
     GeoFuseConfig,
     GoogleGeocoder,
@@ -71,10 +72,9 @@ def get_shapes_to_search(
     found_shapes: list[str],
 ) -> gpd.GeoDataFrame:
     bounding_geom = location["best_bounding_geometry"]
-    mask = (
-        current_shapes.path_to_top_parent.str.contains(f"{bounding_geom},") 
-        & ~current_shapes.shape_id.isin(found_shapes)
-    )
+    mask = current_shapes.path_to_top_parent.str.contains(
+        f"{bounding_geom},"
+    ) & ~current_shapes.shape_id.isin(found_shapes)
     shapes_to_search = current_shapes[mask]
     return shapes_to_search
 
@@ -106,7 +106,7 @@ def geocode_location(
     parent_bounds: BoundingBox,
     parent_name: str | None = None,
 ) -> gpd.GeoDataFrame:
-    geocoders = [
+    geocoders: list[Geocoder] = [
         GoogleGeocoder(config=config),
         AzureGeocoder(config=config),
         NominatimGeocoder(config=config),
@@ -129,11 +129,12 @@ def geocode_location(
                         country_iso3=region,
                         bounding_box=bounds,
                     )
-                    try: 
+                    try:
                         response = geocoder.geocode(request)
                     except Exception as e:
-                        print(geocoder_label, " failure ", e)
-                        
+                        print(geocoder.name, " failure ", e)
+                        response = None
+
                     inputs = [
                         geocoder.name,
                         address_label,

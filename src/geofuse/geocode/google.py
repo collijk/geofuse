@@ -6,7 +6,7 @@ from joblib import Memory
 from pydantic import BaseModel, ConfigDict
 
 from geofuse.config import GeoFuseConfig
-from geofuse.geocoding.model import (
+from geofuse.geocode.model import (
     BoundingBox,
     Geocoder,
     GeocodeRequest,

@@ -14,9 +14,11 @@ def score_names(location_name: str, names_to_search: list[str]) -> pd.Series:
     for name in names_to_search:
         name_results = [
             fuzz.token_sort_ratio(location_name, name),
-            fuzz.token_sort_ratio(location_name.replace(' ', ''), name),
-            fuzz.token_sort_ratio(location_name, name.replace(' ', '')),
-            fuzz.token_sort_ratio(location_name.replace(' ', ''), name.replace(' ', ''))
+            fuzz.token_sort_ratio(location_name.replace(" ", ""), name),
+            fuzz.token_sort_ratio(location_name, name.replace(" ", "")),
+            fuzz.token_sort_ratio(
+                location_name.replace(" ", ""), name.replace(" ", "")
+            ),
         ]
         results.append(max(name_results))
     return 1 - pd.Series(results, index=names_to_search) / 100
@@ -63,14 +65,14 @@ def score_geocoding_results(
             continue
 
         loc = geocode["geometry"]
-        inside_parent_bounds = float(geocode['inside_parent_bounds'])
+        inside_parent_bounds = float(geocode["inside_parent_bounds"])
 
         if loc not in distance_score_cache:
             distance_score_cache[loc] = _score_geocoded_location(
                 loc, inside_parent_bounds, shapes_to_search, centroids, distance_scale
             )
         geocode_score = distance_score_cache[loc].copy()
-        geocode_score["confidence"] = geocode["confidence"]        
+        geocode_score["confidence"] = geocode["confidence"]
         shape_scores.append(geocode_score)
 
     out = pd.concat(shape_scores) if shape_scores else pd.DataFrame()
@@ -82,11 +84,13 @@ def _assess_geocode_confidence(geocodes: pd.DataFrame) -> np.ndarray:
     addresses = geocodes["address"].unique().tolist()
     name_scores = np.ones(len(geocodes), dtype=float)
     for address in addresses:
-        address_score = score_names(address, geocodes["location_name"].fillna("").tolist())
+        address_score = score_names(
+            address, geocodes["location_name"].fillna("").tolist()
+        )
         name_scores = np.minimum(name_scores, address_score.to_numpy())
     name_scores = np.exp(1 / (0.1 + name_scores))
-    name_scores[geocodes['geometry'].isnull()] = 1.
-    return np.maximum(name_scores, 1.)
+    name_scores[geocodes["geometry"].isnull()] = 1.0
+    return np.maximum(name_scores, 1.0)
 
 
 def _score_geocoded_location(

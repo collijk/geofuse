@@ -2,7 +2,7 @@ import geopandas as gpd
 import pandas as pd
 import tqdm
 
-from geofuse import GeoFuseConfig, pipeline, scoring
+from geofuse import GeoFuseConfig, pipeline, score
 
 
 def run_pipeline(
@@ -34,6 +34,7 @@ def run_pipeline(
             location=location,
             current_shapes=current_shapes,
             candidate_shapes=candidate_shapes,
+            found_shapes=[],
         )
         if shapes_to_search.empty:
             continue
@@ -48,14 +49,14 @@ def run_pipeline(
         scores = shapes_to_search[["shape_name", "shape_id"]].copy()
 
         # Look for name matches in search space. Score the matches
-        scores["name_score"] = scoring.score_names(
+        scores["name_score"] = score.score_names(
             location_name=location["location_name"],
             names_to_search=shapes_to_search.shape_name.tolist(),
         ).values
 
         # Look for area matches in the search space.  Score the matches
         # FIXME: Need to allow metrics on value cols.
-        scores["area_score"] = scoring.score_area(
+        scores["area_score"] = score.score_area(
             location_area=location["land_area"],
             areas_to_search=shapes_to_search.area / 1000**2,
         )
@@ -68,7 +69,7 @@ def run_pipeline(
             parent_bounds=parent_bounds,
             parent_name=parent["location_name"],
         )
-        shape_scores = scoring.score_geocoding_results(
+        shape_scores = score.score_geocoding_results(
             geocodes,
             shapes_to_search,
             parent,
@@ -81,7 +82,7 @@ def run_pipeline(
             "area_score": 2.0,
             "distance_score": 5.0,
         }
-        scores["composite_score"] = scoring.compute_composite_score(scores, weights)
+        scores["composite_score"] = score.compute_composite_score(scores, weights)
 
         cutoff = 0.1
         scores_below_cutoff = scores[scores.composite_score < cutoff]

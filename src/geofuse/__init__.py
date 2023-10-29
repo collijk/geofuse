@@ -1,5 +1,5 @@
 from geofuse.config import GeoFuseConfig
-from geofuse.geocoding import (
+from geofuse.geocode import (
     AzureGeocoder,
     BoundingBox,
     Geocoder,
