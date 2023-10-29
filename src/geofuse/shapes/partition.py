@@ -3,23 +3,24 @@ import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 from shapely.errors import GEOSException
 
+from geofuse.model import DataFrameModel
 from geofuse.shapes.retry import buffer_and_retry
 
 
-class DetailedSchema(pa.DataFrameModel):
+class DetailedSchema(DataFrameModel):
     shape_id: str = pa.Field(unique=True)
     level: int
     geometry: GeoSeries
 
 
-class CoarseSchema(pa.DataFrameModel):
+class CoarseSchema(DataFrameModel):
     shape_id: str = pa.Field(unique=True)
     path_to_top_parent: str = pa.Field(unique=True)
     level: int
     geometry: GeoSeries
 
 
-class OutputSchema(pa.DataFrameModel):
+class OutputSchema(DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
@@ -39,15 +40,7 @@ def partition_geoms(
     detailed geometries on the coarse geometries. This operation can subdivide
     detailed geometries into multiple parts. It can also create new geometries
     that are not present in the detailed geometries but are present in the
-    coarse geometries. The resulting GeoDataFrame has the following columns:
-
-    - parent_id: The ID of the parent geometry in the coarse geometries.
-    - path_to_top_parent: A comma-separated string of IDs that describes the
-        path from the parent geometry to the top-level geometry in the coarse
-        geometries.
-    - shape_id: The ID of the geometry in the detailed geometries.
-    - level: The level of the geometry in the detailed geometries.
-    - geometry: The geometry of the partition.
+    coarse geometries.
 
     Parameters
     ----------
@@ -79,7 +72,7 @@ def partition_geoms(
         "level_2": "level",
         "geometry": "geometry",
     }
-    union = union.rename(columns=column_map).loc[:, list(column_map.values())]
+    union = union.rename(columns=column_map)
 
     union: gpd.GeoDataFrame = OutputSchema.validate(union)  # type: ignore
 

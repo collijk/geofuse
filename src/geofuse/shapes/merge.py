@@ -1,18 +1,36 @@
 import warnings
 
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 
+from geofuse.model import DataFrameModel
 
-class PartitionedSchema(pa.DataFrameModel):
+
+class PartitionedSchema(DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
     level: int | float = pa.Field(nullable=True)
     geometry: GeoSeries
+
+
+class StatisticsSchema(PartitionedSchema):
+    mergeable: bool
+
+
+class FullStatisticsSchema(StatisticsSchema):
+    area: float
+    bounding_area: float
+    compactness: float
+    coarse_area: float
+    coarse_fraction: float
+    detailed_area: float
+    detailed_fraction: float
+    missing_from_admin: bool
+    small_geometry: bool
+    sliver_geometry: bool
 
 
 def determine_mergeability(
@@ -29,42 +47,61 @@ def determine_mergeability(
     geometries, if it is small relative to the parent geometry, or if it is
     small and not very compact.
     """
-    keep_cols = [
-        "parent_id",
-        "path_to_top_parent",
-        "shape_id",
-        "level",
-        "geometry",
-    ]
-    gdf = gdf.loc[:, keep_cols].copy()
+    gdf: gpd.GeoDataFrame = PartitionedSchema.validate(gdf)  # type: ignore
 
     gdf["area"] = gdf.area
+
     gdf["bounding_area"] = gdf.minimum_bounding_circle().area
     gdf["compactness"] = gdf["area"] / gdf["bounding_area"]
+
     gdf["coarse_area"] = gdf.groupby("parent_id")["area"].transform("sum")
-    gdf["detailed_area"] = gdf.groupby("shape_id")["area"].transform("sum")
     gdf["coarse_fraction"] = gdf["area"] / gdf["coarse_area"]
+
+    gdf["detailed_area"] = gdf.groupby("shape_id")["area"].transform("sum")
     gdf["detailed_fraction"] = gdf["area"] / gdf["detailed_area"]
 
     gdf["missing_from_admin"] = gdf["shape_id"].isnull()
-    gdf["small_geometry"] = (gdf.detailed_fraction <= detailed_area_threshold) & (
-        gdf.coarse_fraction <= coarse_area_threshold
+    gdf["small_geometry"] = (gdf["detailed_fraction"] <= detailed_area_threshold) & (
+        gdf["coarse_fraction"] <= coarse_area_threshold
     )
-    gdf["sliver_geometry"] = (gdf.detailed_fraction <= 2 * detailed_area_threshold) & (
-        gdf.compactness <= compactness_threshold
-    )
+    gdf["sliver_geometry"] = (
+        gdf["detailed_fraction"] <= 2 * detailed_area_threshold
+    ) & (gdf["coarse_fraction"] <= compactness_threshold)
 
     gdf["mergeable"] = (
         gdf["missing_from_admin"] | gdf["small_geometry"] | gdf["sliver_geometry"]
     )
 
-    if not keep_stats:
-        gdf = gdf.loc[:, keep_cols + ["mergeable"]].copy()
+    out_schema = FullStatisticsSchema if keep_stats else StatisticsSchema
+    gdf: gpd.GeoDataFrame = out_schema.validate(gdf)  # type: ignore
+
     return gdf
 
 
-def collapse_mergeable_geoms(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    result = gdf.copy()
+class CollapsableSchema(DataFrameModel):
+    shape_id: str = pa.Field(nullable=True)
+    parent_id: str
+    path_to_top_parent: str
+    level: int | float = pa.Field(nullable=True)
+    geometry: GeoSeries
+    mergeable: bool
+
+
+class CollapsedSchema(DataFrameModel):
+    shape_id: str
+    parent_id: str
+    path_to_top_parent: str
+    level: int
+    geometry: GeoSeries
+
+
+def collapse_mergeable_geoms(
+    gdf: gpd.GeoDataFrame,
+    buffer_size: float = 10.0,
+) -> gpd.GeoDataFrame:
+    result: gpd.GeoDataFrame = CollapsableSchema.validate(gdf)
+
+    # Set merge_id to a unique ID for non-mergeable geoms and None for mergeable geoms
     result["merge_id"] = None
     result.loc[~result.mergeable, "merge_id"] = list(
         range(len(result.loc[~result.mergeable]))
@@ -77,13 +114,6 @@ def collapse_mergeable_geoms(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     overlap = pd.DataFrame({"merge_id": None, "overlap": 0.0}, index=mergeable.index)
     for merge_id, g in reference.set_index("merge_id").geometry.items():
-        # Our strategy is to buffer each reference geom, then assign
-        # mergeable geoms to the reference geom with the biggest overlap.
-        # Our buffer size is proportional to the "radius" of the reference
-        # geom, which means we prefer to merge to a bigger geom in the
-        # case of a tie.
-        np.sqrt(g.area) / np.pi
-        buffer_size = 10  # .0025 * radius
         buffered_geom = g.buffer(buffer_size)
 
         with warnings.catch_warnings():
@@ -102,10 +132,7 @@ def collapse_mergeable_geoms(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     reference = reference.set_index("merge_id")
     reference["geometry"] = result
-    reference = gpd.GeoDataFrame(
-        reference.reset_index().drop(columns=["mergeable", "merge_id"]),
-        geometry="geometry",
-        crs=gdf.crs,
-    )
+    reference = reference.reset_index().drop(columns=["mergeable", "merge_id"])
 
+    reference: gpd.GeoDataFrame = CollapsedSchema.validate(reference)  # type: ignore
     return reference
