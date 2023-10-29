@@ -8,25 +8,22 @@ from geofuse.shapes.retry import buffer_and_retry
 
 class DetailedSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(unique=True)
-    shape_name: str
     level: int
     geometry: GeoSeries
 
 
 class CoarseSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(unique=True)
-    shape_name: str
-    parent_id: str
     path_to_top_parent: str = pa.Field(unique=True)
     level: int
     geometry: GeoSeries
 
 
 class OutputSchema(pa.DataFrameModel):
+    shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
-    shape_id: str
-    level: int
+    level: int | float = pa.Field(nullable=True)
     geometry: GeoSeries
 
 

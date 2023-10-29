@@ -216,10 +216,10 @@ def google_geocode(client: googlemaps.Client, *_: Any, **kwargs: Any) -> Any:
 
 class GoogleGeocoder(Geocoder):
     def __init__(self, config: GeoFuseConfig):
-        if config.google_api_key is None:
+        if config.geocoding_credentials.google_api_key is None:
             raise ValueError("Google API key is not set.")
-        memory = Memory(config.cache_path, verbose=config.cache_verbose)
-        self._api_key = config.google_api_key
+        memory = Memory(**config.geocoding_cache.model_dump())
+        self._api_key = config.geocoding_credentials.google_api_key
         self._client = googlemaps.Client(key=self._api_key)
         self._geocode = memory.cache(ignore=["client"])(google_geocode)
 

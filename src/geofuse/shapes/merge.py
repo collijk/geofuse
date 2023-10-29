@@ -3,6 +3,16 @@ import warnings
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import pandera as pa
+from pandera.typing.geopandas import GeoSeries
+
+
+class PartitionedSchema(pa.DataFrameModel):
+    shape_id: str = pa.Field(nullable=True)
+    parent_id: str
+    path_to_top_parent: str
+    level: int | float = pa.Field(nullable=True)
+    geometry: GeoSeries
 
 
 def determine_mergeability(
@@ -92,5 +102,10 @@ def collapse_mergeable_geoms(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     reference = reference.set_index("merge_id")
     reference["geometry"] = result
+    reference = gpd.GeoDataFrame(
+        reference.reset_index().drop(columns=["mergeable", "merge_id"]),
+        geometry="geometry",
+        crs=gdf.crs,
+    )
 
-    return reference.reset_index().drop(columns=["merge_id", "mergeable"])
+    return reference

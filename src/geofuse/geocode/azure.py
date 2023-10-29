@@ -147,10 +147,10 @@ def azure_geocode(client: MapsSearchClient, *_: Any, **kwargs: Any) -> Any:
 
 class AzureGeocoder(Geocoder):
     def __init__(self, config: GeoFuseConfig):
-        if config.azure_api_key is None:
+        if config.geocoding_credentials.azure_api_key is None:
             raise ValueError("Azure API key is not set.")
-        memory = Memory(config.cache_path, verbose=config.cache_verbose)
-        self._api_key = config.azure_api_key
+        memory = Memory(**config.geocoding_cache.model_dump())
+        self._api_key = config.geocoding_credentials.azure_api_key
         self._client = MapsSearchClient(credential=AzureKeyCredential(self._api_key))
         self._geocode = memory.cache(ignore=["client"])(azure_geocode)
 
