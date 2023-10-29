@@ -3,7 +3,7 @@ import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 from shapely.errors import GEOSException
 
-from geofuse.model import DataFrameModel, NullableID
+from geofuse.model import DataFrameModel
 from geofuse.shapes.retry import buffer_and_retry
 
 
@@ -24,7 +24,7 @@ class OutputSchema(DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
-    level: NullableID = pa.Field(nullable=True)
+    level: float = pa.Field(nullable=True)
     geometry: GeoSeries
 
 

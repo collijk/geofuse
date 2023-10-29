@@ -5,14 +5,14 @@ import pandas as pd
 import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 
-from geofuse.model import DataFrameModel, NullableID
+from geofuse.model import DataFrameModel
 
 
 class PartitionedSchema(DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
-    level: NullableID = pa.Field(nullable=True)
+    level: float = pa.Field(nullable=True)
     geometry: GeoSeries
 
 
@@ -82,7 +82,7 @@ class CollapsableSchema(DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
-    level: NullableID = pa.Field(nullable=True)
+    level: float = pa.Field(nullable=True)
     geometry: GeoSeries
     mergeable: bool
 
