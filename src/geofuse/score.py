@@ -72,10 +72,30 @@ def score_geocoding_results(
                 loc, inside_parent_bounds, shapes_to_search, centroids, distance_scale
             )
         geocode_score = distance_score_cache[loc].copy()
-        geocode_score["confidence"] = geocode["confidence"]
+        geocode_score = geocode_score.assign(
+            geocoder=geocode['geocoder'],
+            address_type=geocode['address_type'],
+            address=geocode['address'],
+            location_name=geocode['location_name'],
+            region=geocode['region'] is not None,
+            bounds=geocode['bounds'] is not None,
+            result_number=geocode['result_number'],
+            inside_parent_bounds=geocode['inside_parent_bounds'],
+            confidence=geocode['confidence'],
+        )
         shape_scores.append(geocode_score)
 
     out = pd.concat(shape_scores) if shape_scores else pd.DataFrame()
+    if len(out.index.unique()) > 1:
+        out['geocode_score'] =  (
+            out
+            .groupby(level=0)
+            .apply(lambda x: pd.Series((x['distance'] * x['confidence']).sum() / x['confidence'].sum(), index=x.index))
+            .reset_index(level=1, drop=True)
+            .rename('geocode_score')
+        ).values
+    else:
+        out['geocode_score'] = ((out['distance'] * out['confidence']).sum() / out['confidence'].sum())
 
     return out
 
@@ -88,7 +108,7 @@ def _assess_geocode_confidence(geocodes: pd.DataFrame) -> np.ndarray:
             address, geocodes["location_name"].fillna("").tolist()
         )
         name_scores = np.minimum(name_scores, address_score.to_numpy())
-    name_scores = np.exp(1 / (0.1 + name_scores))
+    name_scores = 100 / 2**(10*name_scores)
     name_scores[geocodes["geometry"].isnull()] = 1.0
     return np.maximum(name_scores, 1.0)
 
