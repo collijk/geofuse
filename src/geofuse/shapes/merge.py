@@ -91,7 +91,7 @@ class CollapsedSchema(DataFrameModel):
     shape_id: str
     parent_id: str
     path_to_top_parent: str
-    level: int
+    level: int = pa.Field(coerce=True)
     geometry: GeoSeries
 
 
