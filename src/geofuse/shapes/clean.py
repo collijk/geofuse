@@ -15,9 +15,9 @@ class MultiPolygonOutSchema(MultiPolygonInSchema):
     def _check_geometry(
         self,
         geometry: GeoSeries,
-    ) -> GeoSeries:
-        assert not geometry.apply(lambda g: isinstance(g, MultiPolygon)).any()
-        return geometry
+    ) -> bool:
+        return not geometry.apply(lambda g: isinstance(g, MultiPolygon)).any()
+        
 
 
 def fix_multipolygons(
@@ -70,12 +70,12 @@ class OverlapOutputSchema(OverlapInputSchema):
     def _check_geometry(
         self,
         geometry: GeoSeries,
-    ) -> GeoSeries:
+    ) -> bool:
         total_area = geometry.area.sum()
         unary_union_area = geometry.unary_union.area
         err_tolerance = 1e-8
-        assert np.abs(total_area - unary_union_area) / unary_union_area < err_tolerance
-        return geometry
+        return np.abs(total_area - unary_union_area) / unary_union_area < err_tolerance
+        
 
 
 def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
