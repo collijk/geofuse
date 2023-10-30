@@ -33,7 +33,7 @@ class FullStatisticsSchema(StatisticsSchema):
     sliver_geometry: bool
 
 
-def determine_mergeability(
+def determine_mergeable_geometries(
     gdf: gpd.GeoDataFrame,
     compactness_threshold: float = 0.05,
     detailed_area_threshold: float = 0.1,

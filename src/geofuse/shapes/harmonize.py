@@ -1,80 +1,145 @@
+import functools
+import time
+
 import geopandas as gpd
+import pandas as pd
+
+from geofuse.shapes.clean import fix_multipolygons, fix_overlapping_geometries
+from geofuse.shapes.merge import (
+    collapse_mergeable_geometries,
+    determine_mergeable_geometries,
+)
+from geofuse.shapes.partition import partition_geometries
+from geofuse.shapes.ui import HamonizationUI
 
 
-def large_mergeable_area(
-    gdf: gpd.GeoDataFrame,
-    rel_threshold: float = 1e-3,
-    abs_threshold: float = 1e-3,
-    show_output: bool = False,
-):
-    areas = gdf.dissolve(by="mergeable").area.to_frame()
-    areas.columns = ["area"]
-    areas["area"] /= 1000**2
-    areas["proportion"] = areas["area"] / areas["area"].sum()
-    areas = areas.T
-    if True not in areas:
-        areas[True] = 0.0
+class Harmonizer:
+    def __init__(
+        self,
+        location_name: str,
+        coarse_admin_level: int,
+        detailed_admin_level: int,
+        coarse: gpd.GeoDataFrame,
+        detailed: gpd.GeoDataFrame,
+    ):
+        self.coarse = coarse
+        self.detailed = detailed
+        self.parent_ids = self.detailed["parent_id"].unique().tolist()
 
-    af, at = areas.loc["area", False], areas.loc["area", True]
-    pf, pt = areas.loc["proportion", False], areas.loc["proportion", True]
-
-    def get_color(x, t):
-        if x < t:
-            return "green"
-        elif x < 10 * t:
-            return "yellow"
-        else:
-            return "red"
-
-    rel_color = get_color(pt, rel_threshold)
-    abs_color = get_color(at, abs_threshold)
-
-    if show_output:
-        print(
-            f"Compact: {af:.3f} ({pf:.3f}), Mergeable: [{abs_color}]{at:.3f}[/{abs_color}] [{rel_color}]({pt:.3f})[/{rel_color}]"
+        self.ui = HamonizationUI(
+            location_name=location_name,
+            parent_ids=self.parent_ids,
+            coarse_admin_level=coarse_admin_level,
+            detailed_admin_level=detailed_admin_level,
         )
 
-    return at >= abs_threshold
+        self.metrics = {
+            "partition_geometries": (0, 0.0),
+            "determine_mergeable_geometries": (0, 0.0),
+            "collapse_mergeable_geometries": (0, 0.0),
+            "fix_multipolygons": (0, 0.0),
+            "fix_overlapping_geometries": (0, 0.0),
+        }
+        self.partition_geometries = self.time_execution(partition_geometries)
+        self.determine_mergeable_geometries = self.time_execution(
+            determine_mergeable_geometries
+        )
+        self.collapse_mergeable_geometries = self.time_execution(
+            collapse_mergeable_geometries
+        )
+        self.fix_multipolygons = self.time_execution(fix_multipolygons)
+        self.fix_overlapping_geometries = self.time_execution(
+            fix_overlapping_geometries
+        )
 
+    def time_execution(self, func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            result = func(*args, **kwargs)
+            end = time.time()
+            self.metrics[func.__name__][0] += 1
+            self.metrics[func.__name__][1] += end - start
+            return result
 
-#
-# parent_ids = a3.shape_id.unique().tolist()
-#
-# iterations_per_county = {}
-# results = []
-# start = time.time()
-# for i, parent_id in enumerate(parent_ids):
-#     elapsed = time.time() - start
-#     itps = i / elapsed
-#     remaining = (len(parent_ids) - (i+1))/itps if itps else np.inf
-#     print(f'[green]STARTING ON {parent_id}[/green] | {i:>5}/{len(parent_ids):<5} {elapsed:.2f}s {i / elapsed:.2f}it/s {remaining/60:.2f}m remaining')
-#     county = a3[a3.shape_id.str.contains(parent_id)]
-#     a4s = a4_all[a4_all.parent_id.str.contains(parent_id)]
-#     before = a4s.copy()
-#
-#     iterations = 0
-#     while large_mergeable_area(a4s, show_output=True) and iterations < 10:
-#         a4s = shapes.collapse_mergeable_geoms(a4s)
-#         a4s = fix_multipolygons(a4s)f
-#         a4s = do_overlay(county, a4s.drop(columns='path_to_top_parent'), verbose=True)
-#         a4s = assign_mergeable(a4s)
-#         iterations += 1
-#
-#     iterations_per_county[parent_id] = iterations
-#     after = a4s.loc[~a4s.mergeable].drop(columns='mergeable')
-#
-#     carea = county.area.sum()
-#     darea = a4s.area.sum()
-#     start_area_err = 100 * (darea - carea) / carea
-#     if area_err < 0.2:
-#         after = clean_overlapping_geoms(after)
-#         carea = county.area.sum()
-#         darea = after.area.sum()
-#         end_area_err = 100 * (darea - carea) / carea
-#         color = 'red' if np.abs(end_area_err) > 0.0001 else 'green'
-#         print(f"AREA ERROR start: [{color}]{start_area_err:.4f}[/{color}]% end:[{color}]{end_area_err:.4f}[/{color}]%")
-#     else:
-#         color = 'red'
-#         print(f"AREA ERROR start: [{color}]{start_area_err:.4f}[/{color}]%")
-#
-#     results.append((county, before, after))
+        return wrapper
+
+    def step(self, coarse: gpd.GeoDataFrame, detailed: gpd.GeoDataFrame):
+        detailed = self.collapse_mergeable_geometries(detailed)
+        detailed = self.fix_multipolygons(detailed)
+        detailed = self.partition_geometries(
+            coarse, detailed.drop(columns="path_to_top_parent")
+        )
+        detailed = self.determine_mergeable_geometries(detailed)
+        return detailed
+
+    @staticmethod
+    def compute_merge_statistics(gdf: gpd.GeoDataFrame):
+        merge_area = gdf.dissolve(by="mergeable").area.to_frame()
+        merge_area.columns = ["area"]
+        merge_area["area"] /= 1000**2
+        merge_area["percent"] = 100 * merge_area["area"] / merge_area["area"].sum()
+        merge_area = merge_area.T
+        if True not in merge_area:
+            merge_area[True] = 0.0
+        merge_area = merge_area.rename(columns={False: "reference", True: "mergeable"})
+        return merge_area
+
+    def run(self):
+        max_iterations = 5
+        partition = self.partition_geometries(self.coarse, self.detailed)
+        partition = self.determine_mergeable_geometries(partition)
+
+        parent_ids = partition["parent_id"].unique().tolist()
+        results = []
+
+        with self.ui:
+            for i, parent_id in enumerate(parent_ids):
+                start = time.time()
+                coarse = self.coarse[self.coarse["shape_id"] == parent_id]
+                detailed = partition[partition["parent_id"] == parent_id]
+
+                merge_statistics = self.compute_merge_statistics(detailed)
+
+                iterations = 0
+                while (
+                    iterations < max_iterations
+                    and merge_statistics.at["area", "mergeable"] > 0.001
+                ):
+                    detailed = self.step(coarse, detailed)
+                    merge_statistics = self.compute_merge_statistics(detailed)
+                    iterations += 1
+
+                detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
+
+                coarse_area = coarse.area.sum()
+                detailed_area = detailed.area.sum()
+
+                start_err = 100 * (detailed_area - coarse_area) / coarse_area
+
+                if start_err < 0.2:
+                    detailed = self.fix_overlapping_geometries(detailed)
+                    detailed_area = detailed.area.sum()
+                    end_err = 100 * (detailed_area - coarse_area) / coarse_area
+                else:
+                    end_err = start_err
+
+                results.append(detailed)
+
+                end = time.time()
+
+                metrics = (
+                    i + 1,
+                    parent_id,
+                    merge_statistics.at["area", "reference"],
+                    merge_statistics.at["percent", "reference"],
+                    merge_statistics.at["area", "mergeable"],
+                    merge_statistics.at["percent", "mergeable"],
+                    iterations,
+                    start_err,
+                    end_err,
+                    end - start,
+                )
+                self.ui.update(metrics)
+
+        return gpd.GeoDataFrame(pd.concat(results, ignore_index=True))

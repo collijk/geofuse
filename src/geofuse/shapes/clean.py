@@ -17,7 +17,6 @@ class MultiPolygonOutSchema(MultiPolygonInSchema):
         geometry: GeoSeries,
     ) -> bool:
         return not geometry.apply(lambda g: isinstance(g, MultiPolygon)).any()
-        
 
 
 def fix_multipolygons(
@@ -27,9 +26,9 @@ def fix_multipolygons(
     trial_result = gdf["geometry"].copy()
 
     start_buffer = 2**-4
-    buffers = [start_buffer*2**i for i in range(10)]
+    buffers = [start_buffer * 2**i for i in range(10)]
     # Perturb the buffer size to alter the resolution of the geometry.
-    buffers += [b*1.01 for b in buffers]
+    buffers += [b * 1.01 for b in buffers]
     buffers = sorted(buffers)
 
     for i, geom in enumerate(trial_result):
@@ -72,7 +71,6 @@ class OverlapOutputSchema(OverlapInputSchema):
         unary_union_area = geometry.unary_union.area
         err_tolerance = 1e-8
         return np.abs(total_area - unary_union_area) / unary_union_area < err_tolerance
-        
 
 
 def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
