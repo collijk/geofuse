@@ -22,38 +22,35 @@ class MultiPolygonOutSchema(MultiPolygonInSchema):
 
 def fix_multipolygons(
     gdf: gpd.GeoDataFrame,
-    start_buffer_size: float = 2**-16,
-    max_buffer_size: float = 2**-8,
 ) -> gpd.GeoDataFrame:
     gdf: gpd.GeoDataFrame = MultiPolygonInSchema.validate(gdf)  # type: ignore
-
     trial_result = gdf["geometry"].copy()
 
-    multipolygons = trial_result.apply(lambda g: isinstance(g, MultiPolygon))
-    should_fail = False
-    buffer_size = start_buffer_size
-    while multipolygons.any():
-        if buffer_size > max_buffer_size:
-            if should_fail:
-                raise RuntimeError(
-                    "Multipolygon geometry still present after max buffer size reached"
-                )
+    start_buffer = 2**-4
+    buffers = [start_buffer*2**i for i in range(10)]
+    # Perturb the buffer size to alter the resolution of the geometry.
+    buffers += [b*1.01 for b in buffers]
+    buffers = sorted(buffers)
+
+    for i, geom in enumerate(trial_result):
+        if not isinstance(geom, MultiPolygon):
+            continue
+
+        logger.debug(f"Attempting to fix multipolygon {i}.")
+        for buffer in buffers:
+            test_result = geom.buffer(buffer).buffer(-buffer)
+            if test_result.area > 0 and not isinstance(test_result, MultiPolygon):
+                logger.debug(f"Fixed multipolygon {i} with buffer {buffer}.")
+                trial_result.iloc[i] = test_result
+                break
+        else:
+            keep_threshold = 1e-8
+            sub_geoms = [g for g in geom.geoms if g.area / geom.area > keep_threshold]
+            if len(sub_geoms) == 1:
+                logger.debug(f"Fixed multipolygon {i} by removing small subgeoms.")
+                trial_result.iloc[i] = sub_geoms[0]
             else:
-                # Try perturbing the buffer size to alter the resolution
-                # of the geometry.
-                buffer_size = start_buffer_size * 1.01
-                should_fail = True
-
-        logger.debug(f"Attempting to fix multipolygons with buffer size {buffer_size}.")
-
-        test_result = trial_result.buffer(buffer_size).buffer(-buffer_size)
-        collapsed = test_result.area == 0
-        update = multipolygons & ~collapsed
-
-        trial_result.loc[update] = test_result.loc[update]
-        multipolygons = trial_result.apply(lambda g: isinstance(g, MultiPolygon))
-
-        buffer_size *= 2
+                raise RuntimeError(f"Unable to fix multipolygon {i}.")
 
     gdf["geometry"] = trial_result
 
