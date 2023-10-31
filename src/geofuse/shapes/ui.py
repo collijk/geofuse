@@ -13,7 +13,7 @@ from rich.progress import (
 )
 from rich.table import Table
 
-from geofuse.shapes.model import AlgorithmMetrics
+from geofuse.shapes.model import AlgorithmMetrics, PerformanceMetrics
 
 
 class HarmonizationHeader:
@@ -86,6 +86,7 @@ class HarmonizationUI:
         coarse_admin_level: int,
         detailed_admin_level: int,
         algorithm_metrics: AlgorithmMetrics,
+        performance_metrics: PerformanceMetrics,
     ) -> None:
         self.header = HarmonizationHeader(
             location_name=location_name,
@@ -93,18 +94,21 @@ class HarmonizationUI:
             detailed_admin_level=detailed_admin_level,
         )
         self.progress = HarmonizationProgress(parent_ids)
-        self.metrics = algorithm_metrics
+        self.algorithm_metrics = algorithm_metrics
+        self.performance_metrics = performance_metrics
 
         self.layout = Layout(visible=False)
 
         self.layout.split(
             Layout(name="header", size=3),
             Layout(name="progress", size=5),
-            Layout(name="metrics", size=25),
+            Layout(name="algorithm_metrics", size=25),
+            Layout(name="performance_metrics", size=12),
         )
         self.layout["header"].update(self.header)
         self.layout["progress"].update(self.progress)
-        self.layout["metrics"].update(self.metrics)
+        self.layout["algorithm_metrics"].update(self.algorithm_metrics)
+        self.layout["performance_metrics"].update(self.performance_metrics)
         self.instance = Live(self.layout, refresh_per_second=10)
 
     def update(self) -> None:

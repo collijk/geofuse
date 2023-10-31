@@ -5,7 +5,6 @@ from typing import Any, Callable, ParamSpec, TypeVar
 
 import geopandas as gpd
 import numpy as np
-import pandas as pd
 from rich.panel import Panel
 from rich.table import Table
 
@@ -74,17 +73,29 @@ class AlgorithmMetrics:
             "reference_percent_start": (None, None),
             "mergeable_area_start": (None, None),
             "mergeable_percent_start": (None, None),
-            "reference_area_end": ({"header": "Reference", 'justify': 'right'}, _float(1)),
+            "reference_area_end": (
+                {"header": "Reference", "justify": "right"},
+                _float(1),
+            ),
             "reference_percent_end": ({"header": "%"}, _float(1)),
-            "mergeable_area_end": ({"header": "Mergeable", "justify": "right"}, _float(3, 1e-3)),
+            "mergeable_area_end": (
+                {"header": "Mergeable", "justify": "right"},
+                _float(3, 1e-3),
+            ),
             "mergeable_percent_end": ({"header": "%"}, _float(3, 1e-3)),
             "iterations": ({"header": "Iterations", "justify": "right"}, _int(1, 4)),
-            "area_error_start": ({"header": "AErr Pre (%)", "justify": "right"}, _float(4, 1e-4, 1e-3)),
+            "area_error_start": (
+                {"header": "AErr Pre (%)", "justify": "right"},
+                _float(4, 1e-4, 1e-3),
+            ),
             "area_error_end": (
                 {"header": "AErr Post (%)", "justify": "right"},
                 _float(4, 1e-4, 1e-3),
             ),
-            "processing_time": ({"header": "Processing Time (s)", "justify": "right"}, _float(2)),
+            "processing_time": (
+                {"header": "Processing Time (s)", "justify": "right"},
+                _float(2),
+            ),
         }
         self.metrics: list[Any] = []
         self.current_row: dict[str, Any] = {}
@@ -203,9 +214,39 @@ class PerformanceMetrics:
 
         return wrapper
 
-    def dump(self) -> pd.DataFrame:
-        df = pd.DataFrame.from_dict(
-            self.metrics, orient="index", columns=["calls", "time"]
+    def __rich__(self) -> Panel:
+        table = Table.grid(padding=1, expand=True)
+        table.add_column("Function", justify="left")
+        table.add_column("Calls", justify="right")
+        table.add_column("Time (s)", justify="right")
+        table.add_column("Time per Call (s)", justify="right")
+        table.add_column("%", justify="right")
+
+        total_time = sum(t for _, (_, t) in self.metrics.items())
+        if total_time > 0:
+            max_percent_t = max([t / total_time for _, (_, t) in self.metrics.items()])
+        else:
+            max_percent_t = np.nan
+
+        for func_name, (calls, t) in self.metrics.items():
+            t_per_call = f"{t / calls:.3f}" if calls > 0 else "N/A"
+            percent_t = f"{100*t / total_time:.1f}" if total_time > 0 else "N/A"
+
+            if percent_t == max_percent_t:
+                func_name = f"[bold]{func_name}[/]"
+                percent_t = f"[bold yellow]{percent_t}[/]"
+
+            table.add_row(
+                func_name,
+                f"{calls:,}",
+                f"{t:.2f}",
+                t_per_call,
+                percent_t,
+            )
+
+        return Panel(
+            table,
+            title="Harmonization Performance",
+            border_style="cyan",
+            padding=(1, 2),
         )
-        df["avg_time"] = df["time"] / df["calls"]
-        return df

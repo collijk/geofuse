@@ -35,6 +35,7 @@ class Harmonizer:
             coarse_admin_level=coarse_admin_level,
             detailed_admin_level=detailed_admin_level,
             algorithm_metrics=self.a_metrics,
+            performance_metrics=self.p_metrics,
         )
 
         self.partition_geometries = self.p_metrics.time_calls(partition_geometries)
@@ -53,13 +54,13 @@ class Harmonizer:
         results = []
 
         with self.ui:
-            partition = self.initialize()            
+            partition = self.initialize()
 
             for parent_id in self.parent_ids:
                 self.a_metrics.start_iteration(parent_id)
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
-                detailed = partition[partition["parent_id"] == parent_id]                
+                detailed = partition[partition["parent_id"] == parent_id]
 
                 detailed = self.collapse_geometries(coarse, detailed)
                 detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
