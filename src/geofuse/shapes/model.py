@@ -27,7 +27,7 @@ def _int(
     if good_threshold is not None:
         default_color = "red"
     else:
-        default_color = "default"
+        default_color = "white"
 
     def _format_int(i: int) -> str:
         int_str = f"{i}"
@@ -35,7 +35,7 @@ def _int(
             return f"[green]{int_str}[/green]"
         if mediocre_threshold is not None and i <= mediocre_threshold:
             return f"[yellow]{int_str}[/yellow]"
-        return f"[{default_color}]int_str[/{default_color}]"
+        return f"[bold {default_color}]{int_str}[/]"
 
     return _format_int
 
@@ -52,15 +52,15 @@ def _float(
     if good_threshold is not None:
         default_color = "red"
     else:
-        default_color = "default"
+        default_color = "white"
 
     def _format_float(f: float) -> str:
         float_str = f"{f:.{precision}f}"
-        if good_threshold is not None and f <= good_threshold:
-            return f"[green]{float_str}[/green]"
-        if mediocre_threshold is not None and f <= mediocre_threshold:
-            return f"[yellow]{float_str}[/yellow]"
-        return f"[{default_color}]float_str[/{default_color}]"
+        if good_threshold is not None and np.abs(f) <= good_threshold:
+            return f"[green]{float_str}[/]"
+        if mediocre_threshold is not None and np.abs(f) <= mediocre_threshold:
+            return f"[yellow]{float_str}[/]"
+        return f"[bold {default_color}]{float_str}[/]"
 
     return _format_float
 
@@ -68,23 +68,23 @@ def _float(
 class AlgorithmMetrics:
     def __init__(self, display_rows: int = 10) -> None:
         self.metrics_properties = {
-            "index": ({"header": "Index"}, _identity),
+            "index": ({"header": "#"}, _identity),
             "parent_id": ({"header": "Parent ID"}, _identity),
             "reference_area_start": (None, None),
             "reference_percent_start": (None, None),
             "mergeable_area_start": (None, None),
             "mergeable_percent_start": (None, None),
-            "reference_area_end": ({"header": "Reference"}, _float(3, 1e-3)),
-            "reference_percent_end": ({"header": "%"}, _float(3, 1e-3)),
-            "mergeable_area_end": ({"header": "Mergeable"}, _float(3, 1e-3)),
+            "reference_area_end": ({"header": "Reference", 'justify': 'right'}, _float(1)),
+            "reference_percent_end": ({"header": "%"}, _float(1)),
+            "mergeable_area_end": ({"header": "Mergeable", "justify": "right"}, _float(3, 1e-3)),
             "mergeable_percent_end": ({"header": "%"}, _float(3, 1e-3)),
-            "iterations": ({"header": "Iterations"}, _int(1, 4)),
-            "area_error_start": ({"header": "Area Error"}, _float(4, 1e-4, 1e-3)),
+            "iterations": ({"header": "Iterations", "justify": "right"}, _int(1, 4)),
+            "area_error_start": ({"header": "AErr Pre (%)", "justify": "right"}, _float(4, 1e-4, 1e-3)),
             "area_error_end": (
-                {"header": "Post-fix Area Error"},
+                {"header": "AErr Post (%)", "justify": "right"},
                 _float(4, 1e-4, 1e-3),
             ),
-            "processing_time": ({"header": "Processing Time (s)"}, _float(3)),
+            "processing_time": ({"header": "Processing Time (s)", "justify": "right"}, _float(2)),
         }
         self.metrics: list[Any] = []
         self.current_row: dict[str, Any] = {}
@@ -106,7 +106,7 @@ class AlgorithmMetrics:
     def start_collapse(self, gdf: gpd.GeoDataFrame) -> dict[str, float]:
         stats = self.compute_merge_statistics(gdf)
         for k, v in stats.items():
-            self.current_row[f"{k}_end"].append(v)
+            self.current_row[f"{k}_start"] = v
         self.current_row["iterations"] = 0
         stats["iterations"] = self.current_row["iterations"]
         return stats
@@ -114,7 +114,7 @@ class AlgorithmMetrics:
     def end_collapse(self, gdf: gpd.GeoDataFrame) -> dict[str, float]:
         stats = self.compute_merge_statistics(gdf)
         for k, v in stats.items():
-            self.current_row[f"{k}_end"].append(v)
+            self.current_row[f"{k}_end"] = v
         self.current_row["iterations"] += 1
         stats["iterations"] = self.current_row["iterations"]
         return stats
@@ -139,7 +139,7 @@ class AlgorithmMetrics:
 
     @staticmethod
     def compute_merge_statistics(gdf: gpd.GeoDataFrame) -> dict[str, float]:
-        merge_area = gdf.dissolve(by="mergeable").area.to_dict()
+        merge_area = gdf.dissolve(by="mergeable").area.to_frame()
         merge_area.columns = ["area"]
         merge_area["area"] /= 1000**2
         merge_area["percent"] = 100 * merge_area["area"] / merge_area["area"].sum()
