@@ -10,7 +10,7 @@ from geofuse.shapes.merge import (
     determine_mergeable_geometries,
 )
 from geofuse.shapes.partition import partition_geometries
-from geofuse.shapes.ui import HamonizationUI
+from geofuse.shapes.ui import HarmonizationUI
 
 
 class Harmonizer:
@@ -24,9 +24,9 @@ class Harmonizer:
     ):
         self.coarse = coarse
         self.detailed = detailed
-        self.parent_ids = self.detailed["parent_id"].unique().tolist()
+        self.parent_ids = self.coarse["shape_id"].unique().tolist()
 
-        self.ui = HamonizationUI(
+        self.ui = HarmonizationUI(
             location_name=location_name,
             parent_ids=self.parent_ids,
             coarse_admin_level=coarse_admin_level,

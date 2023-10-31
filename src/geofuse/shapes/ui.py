@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 from rich.layout import Layout
 from rich.live import Live
@@ -36,12 +36,13 @@ class HarmonizationHeader:
         )
         clock = datetime.now().ctime().replace(":", "[blink]:[/]")
         grid.add_row(title, clock)
-        return Panel(grid, style="cyan on black")
+        return Panel(grid, style="cyan")
 
 
 class HarmonizationProgress:
     def __init__(self, parent_ids: list[str]):
         self.progress = Progress(
+            TextColumn("{task.fields[shape_id]}"),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
             TextColumn("[progress.remaining]{task.completed}/{task.total}"),
             SpinnerColumn(),
@@ -50,17 +51,21 @@ class HarmonizationProgress:
             TimeRemainingColumn(),
             expand=True,
         )
-        self.task = self.progress.add_task("Harmonizing", total=len(parent_ids))
-
+        
         self.parent_ids = parent_ids
         self.task_index = 0
-        self.progress.start()
-        self.progress.console.print(f"Working on {self.parent_ids[self.task_index]}")
+        
+        self.task = self.progress.add_task(
+            "Harmonizing", 
+            total=len(parent_ids), 
+            shape_id=self.parent_ids[self.task_index],
+        )
+
+        
 
     def advance(self):
         self.task_index += 1
-        self.progress.advance(self.task)
-        self.progress.console.print(f"Working on {self.parent_ids[self.task_index]}")
+        self.progress.update(self.task, advance=1, shape_id=self.parent_ids[self.task_index])
 
     def __rich__(self):
         return Panel(
@@ -75,7 +80,7 @@ class HarmonizationMetrics:
     def __init__(self, rows: int = 10):
         self.rows = rows
         self.columns = [
-            {"header": "#"},
+            {"header": "#", "style": "green"},
             {"header": "Parent ID"},
             {"header": "Reference"},
             {"header": "%"},
@@ -94,9 +99,11 @@ class HarmonizationMetrics:
             self.metrics.pop(0)
 
     def __rich__(self):
-        table = Table.grid(padding=1)
+        table = Table.grid(padding=1, expand=True)
         for column in self.columns:
             table.add_column(**column)
+        header = [f"[b]{c['header']}[/b]" for c in self.columns]
+        table.add_row(*header)
 
         for row in self.metrics:
             table.add_row(*row)
@@ -106,15 +113,15 @@ class HarmonizationMetrics:
         )
 
 
-class HamonizationUI:
-    def __int__(
+class HarmonizationUI:
+    def __init__(
         self,
         location_name: str,
         parent_ids: list[str],
         coarse_admin_level: int,
         detailed_admin_level: int,
     ):
-        self.running = False
+        self.instance = None
         self.header = HarmonizationHeader(
             location_name=location_name,
             coarse_admin_level=coarse_admin_level,
@@ -123,11 +130,11 @@ class HamonizationUI:
         self.progress = HarmonizationProgress(parent_ids)
         self.metrics = HarmonizationMetrics()
 
-        self.layout = Layout()
+        self.layout = Layout(visible=False)
         self.layout.split(
             Layout(name="header", size=3),
             Layout(name="progress", size=5),
-            Layout(name="metrics", size=15),
+            Layout(name="metrics", size=25),
         )
         self.layout["header"].update(self.header)
         self.layout["progress"].update(self.progress)
@@ -137,10 +144,11 @@ class HamonizationUI:
         self.progress.advance()
         self.metrics.update(metrics)
 
-    def __enter__(self):
-        self.running = True
-        with Live(self.layout, refresh_per_second=4) as live:
-            return live
+    def __enter__(self):        
+        self.instance = Live(self.layout, refresh_per_second=10)
+        self.instance.start()        
+        return self.instance
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.running = False
+        self.instance.stop()
+        self.instance = None
