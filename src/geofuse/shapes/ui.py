@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import numpy as np
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
@@ -14,6 +13,8 @@ from rich.progress import (
 )
 from rich.table import Table
 
+from geofuse.shapes.model import AlgorithmMetrics
+
 
 class HarmonizationHeader:
     def __init__(
@@ -21,12 +22,12 @@ class HarmonizationHeader:
         location_name: str,
         coarse_admin_level: int,
         detailed_admin_level: int,
-    ):
+    ) -> None:
         self.location_name = location_name
         self.coarse_admin_level = coarse_admin_level
         self.detailed_admin_level = detailed_admin_level
 
-    def __rich__(self):
+    def __rich__(self) -> Panel:
         grid = Table.grid(expand=True)
         grid.add_column(justify="left", ratio=1)
         grid.add_column(justify="right", ratio=1)
@@ -41,7 +42,7 @@ class HarmonizationHeader:
 
 
 class HarmonizationProgress:
-    def __init__(self, parent_ids: list[str]):
+    def __init__(self, parent_ids: list[str]) -> None:
         self.progress = Progress(
             TextColumn("{task.fields[shape_id]}"),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
@@ -52,78 +53,28 @@ class HarmonizationProgress:
             TimeRemainingColumn(),
             expand=True,
         )
-        
+
         self.parent_ids = parent_ids
         self.task_index = 0
-        
+
         self.task = self.progress.add_task(
-            "Harmonizing", 
-            total=len(parent_ids), 
+            "Harmonizing",
+            total=len(parent_ids),
             shape_id=self.parent_ids[self.task_index],
         )
 
-        
-
-    def advance(self):
+    def advance(self) -> None:
         self.task_index += 1
-        self.progress.update(self.task, advance=1, shape_id=self.parent_ids[self.task_index])
+        self.progress.update(
+            self.task, advance=1, shape_id=self.parent_ids[self.task_index]
+        )
 
-    def __rich__(self):
+    def __rich__(self) -> Panel:
         return Panel(
             self.progress,
             title="Harmonization Progress",
             border_style="cyan",
             padding=(1, 2),
-        )
-
-
-class HarmonizationMetrics:
-    def __init__(self, rows: int = 10):
-        self.rows = rows
-        self.columns = [
-            {"header": "#", "style": "green"},
-            {"header": "Parent ID"},
-            {"header": "Reference"},
-            {"header": "%"},
-            {"header": "Mergeable"},
-            {"header": "%"},
-            {"header": "Iterations"},
-            {"header": "Error"},
-            {"header": "Post-fix Error"},
-            {"header": "Processing Time (s)"},
-        ]
-        self.metrics = []
-
-    def update(self, metrics):
-        self.metrics.append(metrics)
-        if len(self.metrics) > self.rows:
-            self.metrics.pop(0)
-
-    def __rich__(self):
-        table = Table.grid(padding=1, expand=True)
-        for column in self.columns:
-            table.add_column(**column)
-        header = [f"[b]{c['header']}[/b]" for c in self.columns]
-        table.add_row(*header)
-
-        for row in self.metrics:
-            out_row = []
-            for v in row:
-                if isinstance(v, float):
-                    out_row.append(np.format_float_positional(
-                        v, 
-                        precision=3, 
-                        unique=False,
-                        fractional=False,
-                    ))
-                else:
-                    out_row.append(str(v))
-            
-            row = [str(v) for v in row]
-            table.add_row(*row)
-
-        return Panel(
-            table, title="Harmonization Metrics", border_style="cyan", padding=(1, 2)
         )
 
 
@@ -134,17 +85,18 @@ class HarmonizationUI:
         parent_ids: list[str],
         coarse_admin_level: int,
         detailed_admin_level: int,
-    ):
-        self.instance = None
+        algorithm_metrics: AlgorithmMetrics,
+    ) -> None:
         self.header = HarmonizationHeader(
             location_name=location_name,
             coarse_admin_level=coarse_admin_level,
             detailed_admin_level=detailed_admin_level,
         )
         self.progress = HarmonizationProgress(parent_ids)
-        self.metrics = HarmonizationMetrics()
+        self.metrics = algorithm_metrics
 
         self.layout = Layout(visible=False)
+
         self.layout.split(
             Layout(name="header", size=3),
             Layout(name="progress", size=5),
@@ -153,16 +105,14 @@ class HarmonizationUI:
         self.layout["header"].update(self.header)
         self.layout["progress"].update(self.progress)
         self.layout["metrics"].update(self.metrics)
-
-    def update(self, metrics):
-        self.progress.advance()
-        self.metrics.update(metrics)
-
-    def __enter__(self):        
         self.instance = Live(self.layout, refresh_per_second=10)
-        self.instance.start()        
+
+    def update(self) -> None:
+        self.progress.advance()
+
+    def __enter__(self) -> Live:
+        self.instance.start()
         return self.instance
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type: None, exc_value: None, traceback: None) -> None:
         self.instance.stop()
-        self.instance = None
