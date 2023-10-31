@@ -224,12 +224,12 @@ class PerformanceMetrics:
             "%": {"justify": "right"},
         }
         for col, spec in columns.items():
-            table.add_column(col, **spec)
+            table.add_column(col, **spec)  # type: ignore[arg-type]
 
         table.add_row(*[f"[bold]{c}[/]" for c in columns])
 
         total_time = sum(t for _, (_, t) in self.metrics.items())
-       
+
         for func_name, (calls, t) in self.metrics.items():
             t_per_call = f"{t / calls:.3f}" if calls > 0 else "N/A"
             percent_t = f"{100*t / total_time:.1f}" if total_time > 0 else "N/A"

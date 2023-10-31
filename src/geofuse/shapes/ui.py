@@ -109,7 +109,7 @@ class HarmonizationUI:
         self.layout["progress"].update(self.progress)
         self.layout["algorithm_metrics"].update(self.algorithm_metrics)
         self.layout["performance_metrics"].update(self.performance_metrics)
-        self.instance = Live(self.layout, refresh_per_second=10)
+        self.instance = Live(self.layout, refresh_per_second=10, redirect_stderr=False)
 
     def update(self) -> None:
         self.progress.advance()
