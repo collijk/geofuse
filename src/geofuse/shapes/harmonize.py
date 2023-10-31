@@ -53,14 +53,16 @@ class Harmonizer:
     def run(self) -> gpd.GeoDataFrame:
         results = []
 
-        with self.ui:
-            partition = self.initialize()
+        self.ui.start()
+
+        try:
+            partition = self.initialize()            
 
             for parent_id in self.parent_ids:
                 self.a_metrics.start_iteration(parent_id)
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
-                detailed = partition[partition["parent_id"] == parent_id]
+                detailed = partition[partition["parent_id"] == parent_id]                
 
                 detailed = self.collapse_geometries(coarse, detailed)
                 detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
@@ -70,6 +72,9 @@ class Harmonizer:
                 results.append(detailed)
                 self.a_metrics.end_iteration()
                 self.ui.update()
+        except Exception as e:
+            self.ui.stop()
+            raise e
 
         return gpd.GeoDataFrame(pd.concat(results), crs=self.coarse.crs)
 

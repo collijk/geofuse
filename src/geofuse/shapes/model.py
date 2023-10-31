@@ -216,23 +216,25 @@ class PerformanceMetrics:
 
     def __rich__(self) -> Panel:
         table = Table.grid(padding=1, expand=True)
-        table.add_column("Function", justify="left")
-        table.add_column("Calls", justify="right")
-        table.add_column("Time (s)", justify="right")
-        table.add_column("Time per Call (s)", justify="right")
-        table.add_column("%", justify="right")
+        columns = {
+            "Function": {"justify": "left"},
+            "Calls": {"justify": "right"},
+            "Time (s)": {"justify": "right"},
+            "Time per Call (s)": {"justify": "right"},
+            "%": {"justify": "right"},
+        }
+        for col, spec in columns.items():
+            table.add_column(col, **spec)
+
+        table.add_row(*[f"[bold]{c}[/]" for c in columns])
 
         total_time = sum(t for _, (_, t) in self.metrics.items())
-        if total_time > 0:
-            max_percent_t = max([t / total_time for _, (_, t) in self.metrics.items()])
-        else:
-            max_percent_t = np.nan
-
+       
         for func_name, (calls, t) in self.metrics.items():
             t_per_call = f"{t / calls:.3f}" if calls > 0 else "N/A"
             percent_t = f"{100*t / total_time:.1f}" if total_time > 0 else "N/A"
 
-            if percent_t == max_percent_t:
+            if total_time and t / total_time > 0.2:
                 func_name = f"[bold]{func_name}[/]"
                 percent_t = f"[bold yellow]{percent_t}[/]"
 

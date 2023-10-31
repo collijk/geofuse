@@ -103,7 +103,7 @@ class HarmonizationUI:
             Layout(name="header", size=3),
             Layout(name="progress", size=5),
             Layout(name="algorithm_metrics", size=25),
-            Layout(name="performance_metrics", size=12),
+            Layout(name="performance_metrics", size=16),
         )
         self.layout["header"].update(self.header)
         self.layout["progress"].update(self.progress)
@@ -114,9 +114,8 @@ class HarmonizationUI:
     def update(self) -> None:
         self.progress.advance()
 
-    def __enter__(self) -> Live:
+    def start(self) -> None:
         self.instance.start()
-        return self.instance
 
-    def __exit__(self, exc_type: None, exc_value: None, traceback: None) -> None:
+    def stop(self) -> None:
         self.instance.stop()
