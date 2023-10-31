@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import numpy as np
 from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
@@ -106,6 +107,19 @@ class HarmonizationMetrics:
         table.add_row(*header)
 
         for row in self.metrics:
+            out_row = []
+            for v in row:
+                if isinstance(v, float):
+                    out_row.append(np.format_float_positional(
+                        v, 
+                        precision=3, 
+                        unique=False,
+                        fractional=False,
+                    ))
+                else:
+                    out_row.append(str(v))
+            
+            row = [str(v) for v in row]
             table.add_row(*row)
 
         return Panel(

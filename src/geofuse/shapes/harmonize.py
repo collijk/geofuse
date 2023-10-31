@@ -34,11 +34,11 @@ class Harmonizer:
         )
 
         self.metrics = {
-            "partition_geometries": (0, 0.0),
-            "determine_mergeable_geometries": (0, 0.0),
-            "collapse_mergeable_geometries": (0, 0.0),
-            "fix_multipolygons": (0, 0.0),
-            "fix_overlapping_geometries": (0, 0.0),
+            "partition_geometries": [0, 0.0],
+            "determine_mergeable_geometries": [0, 0.0],
+            "collapse_mergeable_geometries": [0, 0.0],
+            "fix_multipolygons": [0, 0.0],
+            "fix_overlapping_geometries": [0, 0.0],
         }
         self.partition_geometries = self.time_execution(partition_geometries)
         self.determine_mergeable_geometries = self.time_execution(
@@ -86,14 +86,15 @@ class Harmonizer:
         return merge_area
 
     def run(self):
-        max_iterations = 5
-        partition = self.partition_geometries(self.coarse, self.detailed)
-        partition = self.determine_mergeable_geometries(partition)
-
-        parent_ids = partition["parent_id"].unique().tolist()
-        results = []
-
         with self.ui:
+            max_iterations = 5
+            partition = self.partition_geometries(self.coarse, self.detailed)
+            partition = self.determine_mergeable_geometries(partition)
+    
+            parent_ids = partition["parent_id"].unique().tolist()
+            results = []
+
+        
             for i, parent_id in enumerate(parent_ids):
                 start = time.time()
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
