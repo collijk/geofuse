@@ -3,25 +3,27 @@ import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 from shapely.errors import GEOSException
 
-from geofuse.model import DataFrameModel
 from geofuse.shapes.retry import buffer_on_exception
 
 
-class DetailedSchema(DataFrameModel):
+class DetailedSchema(pa.DataFrameModel):
     shape_id: str
+    shape_name: str
     level: int
     geometry: GeoSeries
 
 
-class CoarseSchema(DataFrameModel):
+class CoarseSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(unique=True)
+    shape_name: str
     path_to_top_parent: str = pa.Field(unique=True)
     level: int
     geometry: GeoSeries
 
 
-class OutputSchema(DataFrameModel):
+class OutputSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
+    shape_name: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
     level: float = pa.Field(nullable=True, coerce=True)
@@ -69,6 +71,7 @@ def partition_geometries(
         "shape_id_1": "parent_id",
         "path_to_top_parent": "path_to_top_parent",
         "shape_id_2": "shape_id",
+        "shape_name_2": "shape_name",
         "level_2": "level",
         "geometry": "geometry",
     }

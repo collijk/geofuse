@@ -5,11 +5,10 @@ import pandas as pd
 import pandera as pa
 from pandera.typing.geopandas import GeoSeries
 
-from geofuse.model import DataFrameModel
 
-
-class PartitionedSchema(DataFrameModel):
+class PartitionedSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
+    shape_name: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
     level: float = pa.Field(nullable=True)
@@ -78,8 +77,9 @@ def determine_mergeable_geometries(
     return gdf
 
 
-class CollapsableSchema(DataFrameModel):
+class CollapsableSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(nullable=True)
+    shape_name: str = pa.Field(nullable=True)
     parent_id: str
     path_to_top_parent: str
     level: float = pa.Field(nullable=True)
@@ -87,8 +87,9 @@ class CollapsableSchema(DataFrameModel):
     mergeable: bool
 
 
-class CollapsedSchema(DataFrameModel):
+class CollapsedSchema(pa.DataFrameModel):
     shape_id: str
+    shape_name: str
     parent_id: str
     path_to_top_parent: str
     level: int = pa.Field(coerce=True)

@@ -1,5 +1,6 @@
 import geopandas as gpd
 import pandas as pd
+from loguru import logger
 
 from geofuse.shapes.clean import fix_multipolygons, fix_overlapping_geometries
 from geofuse.shapes.merge import (
@@ -9,7 +10,6 @@ from geofuse.shapes.merge import (
 from geofuse.shapes.model import AlgorithmMetrics, PerformanceMetrics
 from geofuse.shapes.partition import partition_geometries
 from geofuse.shapes.ui import HarmonizationUI
-from loguru import logger
 
 
 class Harmonizer:
@@ -22,10 +22,14 @@ class Harmonizer:
         detailed: gpd.GeoDataFrame,
     ):
         coarse = coarse.explode(index_parts=True).reset_index(level=1)
-        for col in ['shape_id', 'path_to_top_parent']:
-            coarse[col] = coarse.apply(lambda row: f"{row[col]}_{row['level_1']}", axis=1)
-        self.coarse = coarse.drop(columns=['level_1'])        
-        
+        coarse["shape_id"] = coarse.apply(
+            lambda row: f"{row['shape_id']}_{row['level_1']}", axis=1
+        )
+        coarse["path_to_top_parent"] = coarse.apply(
+            lambda row: f"{row['path_to_top_parent']}_{row['level_1']}", axis=1
+        )
+        self.coarse = coarse.drop(columns=["level_1"])
+
         self.detailed = detailed
         self.parent_ids = self.coarse["shape_id"].unique().tolist()
         self.max_step_iterations = 5
@@ -54,7 +58,7 @@ class Harmonizer:
             fix_overlapping_geometries
         )
 
-        self.results = []
+        self.results: list[gpd.GeoDataFrame] = []
 
     def run(self) -> gpd.GeoDataFrame:
         if self.results:
@@ -63,41 +67,58 @@ class Harmonizer:
         self.ui.start()
 
         try:
-            logger.info('Initializing...')
-            partition = self.initialize()            
+            logger.info("Initializing...")
+            partition = self.initialize()
 
             for parent_id in self.parent_ids:
-                logger.info(f'Starting {parent_id}')
+                logger.info(f"Starting {parent_id}")
                 self.a_metrics.start_iteration(parent_id)
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
-                detailed = partition[partition["parent_id"] == parent_id] 
+                detailed = partition[partition["parent_id"] == parent_id]
                 if detailed.mergeable.all():
-                    detailed = detailed.dissolve(by=['parent_id', 'path_to_top_parent']).reset_index()
-                    detailed['level'] = coarse['level'].iloc[0] + 1                    
-                    detailed['mergeable'] = False                    
+                    detailed = detailed.dissolve(
+                        by=["parent_id", "path_to_top_parent"]
+                    ).reset_index()
+                    detailed["level"] = coarse["level"].iloc[0] + 1
+                    detailed["shape_name"] = coarse["shape_name"].iloc[0]
+                    detailed["mergeable"] = False
 
                 detailed = self.collapse_geometries(coarse, detailed)
                 detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
 
                 detailed = self.correct_area(coarse, detailed)
 
-                parent_id = parent_id.split('_')[0]
-                detailed['parent_id'] = parent_id
-                detailed['shape_id'] = [f"{parent_id}.{i+1}" for i in range(len(detailed))]
-                detailed['path_to_top_parent'] = detailed.apply(lambda row: f"{row['path_to_top_parent'].split('_')[0]},{row['shape_id']}", axis=1)
-                detailed['level'] = detailed['level'].astype(int)
+                parent_id = parent_id.split("_")[0]
+                detailed["parent_id"] = parent_id
+                detailed["path_to_top_parent"] = detailed["path_to_top_parent"].apply(
+                    lambda s: s.split("_")[0]
+                )
+                detailed["level"] = detailed["level"].astype(int)
 
                 self.results.append(detailed)
                 self.a_metrics.end_iteration()
                 self.ui.update()
-        except Exception as e:
+        except Exception:
             self.ui.stop()
-            raise e
+            raise
 
         self.ui.stop()
 
-        return gpd.GeoDataFrame(pd.concat(self.results), crs=self.coarse.crs)
+        def set_ids(g: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+            parent_id_ = g["parent_id"].iloc[0]
+            pttp = g["path_to_top_parent"].iloc[0]
+            g["shape_id"] = [f"{parent_id_}.{i+1}" for i in range(len(g))]
+            g["path_to_top_parent"] = [f"{pttp}.{i+1}" for i in range(len(g))]
+            return g
+
+        results = (
+            gpd.GeoDataFrame(pd.concat(self.results), crs=self.coarse.crs)
+            .groupby("parent_id")
+            .apply(set_ids)
+            .reset_index(drop=True)
+        )
+        return results
 
     def initialize(self) -> gpd.GeoDataFrame:
         partition = self.partition_geometries(self.coarse, self.detailed)
@@ -111,9 +132,8 @@ class Harmonizer:
     ) -> gpd.GeoDataFrame:
         stats = self.a_metrics.start_collapse(detailed)
 
-        while (
-            stats["iterations"] < self.max_step_iterations
-            and (stats["mergeable_area"] > 0.0001 or stats["mergeable_percent"] > 0.0001)
+        while stats["iterations"] < self.max_step_iterations and (
+            stats["mergeable_area"] > 0.0001 or stats["mergeable_percent"] > 0.0001
         ):
             detailed = self.collapse_mergeable_geometries(detailed)
             detailed = self.fix_multipolygons(detailed)
