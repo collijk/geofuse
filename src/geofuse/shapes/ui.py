@@ -65,9 +65,12 @@ class HarmonizationProgress:
 
     def advance(self) -> None:
         self.task_index += 1
-        self.progress.update(
-            self.task, advance=1, shape_id=self.parent_ids[self.task_index]
-        )
+        if self.task_index < len(self.parent_ids):
+            self.progress.update(
+                self.task, advance=1, shape_id=self.parent_ids[self.task_index]
+            )
+        elif self.task_index > len(self.parent_ids):
+            raise ValueError()
 
     def __rich__(self) -> Panel:
         return Panel(
@@ -109,7 +112,7 @@ class HarmonizationUI:
         self.layout["progress"].update(self.progress)
         self.layout["algorithm_metrics"].update(self.algorithm_metrics)
         self.layout["performance_metrics"].update(self.performance_metrics)
-        self.instance = Live(self.layout, refresh_per_second=10, redirect_stderr=False)
+        self.instance = Live(self.layout, refresh_per_second=10, transient=True)
 
     def update(self) -> None:
         self.progress.advance()

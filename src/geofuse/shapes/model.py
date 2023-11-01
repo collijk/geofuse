@@ -28,7 +28,9 @@ def _int(
     else:
         default_color = "white"
 
-    def _format_int(i: int) -> str:
+    def _format_int(i: int | None) -> str:
+        if i is None:
+            return "[blink bold red]NA[/]"
         int_str = f"{i}"
         if good_threshold is not None and i <= good_threshold:
             return f"[green]{int_str}[/green]"
@@ -54,6 +56,8 @@ def _float(
         default_color = "white"
 
     def _format_float(f: float) -> str:
+        if f is None:
+            return "[blink bold red]NA[/]"
         float_str = f"{f:.{precision}f}"
         if good_threshold is not None and np.abs(f) <= good_threshold:
             return f"[green]{float_str}[/]"

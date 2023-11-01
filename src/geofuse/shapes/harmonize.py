@@ -9,6 +9,7 @@ from geofuse.shapes.merge import (
 from geofuse.shapes.model import AlgorithmMetrics, PerformanceMetrics
 from geofuse.shapes.partition import partition_geometries
 from geofuse.shapes.ui import HarmonizationUI
+from loguru import logger
 
 
 class Harmonizer:
@@ -22,7 +23,6 @@ class Harmonizer:
     ):
         self.coarse = coarse
         self.detailed = detailed
-        self.partition = None
         self.parent_ids = self.coarse["shape_id"].unique().tolist()
         self.max_step_iterations = 5
 
@@ -50,15 +50,20 @@ class Harmonizer:
             fix_overlapping_geometries
         )
 
+        self.results = []
+
     def run(self) -> gpd.GeoDataFrame:
-        results = []
+        if self.results:
+            raise NotImplementedError
 
         self.ui.start()
 
         try:
+            logger.info('Initializing...')
             partition = self.initialize()            
 
             for parent_id in self.parent_ids:
+                logger.info(f'Starting {parent_id}')
                 self.a_metrics.start_iteration(parent_id)
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
@@ -69,14 +74,14 @@ class Harmonizer:
 
                 detailed = self.correct_area(coarse, detailed)
 
-                results.append(detailed)
+                self.results.append(detailed)
                 self.a_metrics.end_iteration()
                 self.ui.update()
         except Exception as e:
             self.ui.stop()
             raise e
 
-        return gpd.GeoDataFrame(pd.concat(results), crs=self.coarse.crs)
+        return gpd.GeoDataFrame(pd.concat(self.results), crs=self.coarse.crs)
 
     def initialize(self) -> gpd.GeoDataFrame:
         partition = self.partition_geometries(self.coarse, self.detailed)
@@ -102,6 +107,8 @@ class Harmonizer:
             detailed = self.determine_mergeable_geometries(detailed)
 
             stats = self.a_metrics.end_collapse(detailed)
+
+        stats = self.a_metrics.end_collapse(detailed)
 
         return detailed
 
