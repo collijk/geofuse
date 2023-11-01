@@ -21,7 +21,11 @@ class Harmonizer:
         coarse: gpd.GeoDataFrame,
         detailed: gpd.GeoDataFrame,
     ):
-        self.coarse = coarse
+        coarse = coarse.explode(index_parts=True).reset_index(level=1)
+        for col in ['shape_id', 'path_to_top_parent']:
+            coarse[col] = coarse.apply(lambda row: f"{row[col]}_{row['level_1']}", axis=1)
+        self.coarse = coarse.drop(columns=['level_1'])        
+        
         self.detailed = detailed
         self.parent_ids = self.coarse["shape_id"].unique().tolist()
         self.max_step_iterations = 5
@@ -67,12 +71,22 @@ class Harmonizer:
                 self.a_metrics.start_iteration(parent_id)
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
-                detailed = partition[partition["parent_id"] == parent_id]                
+                detailed = partition[partition["parent_id"] == parent_id] 
+                if detailed.mergeable.all():
+                    detailed = detailed.dissolve(by=['parent_id', 'path_to_top_parent']).reset_index()
+                    detailed['level'] = coarse['level'].iloc[0] + 1                    
+                    detailed['mergeable'] = False                    
 
                 detailed = self.collapse_geometries(coarse, detailed)
                 detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
 
                 detailed = self.correct_area(coarse, detailed)
+
+                parent_id = parent_id.split('_')[0]
+                detailed['parent_id'] = parent_id
+                detailed['shape_id'] = [f"{parent_id}.{i+1}" for i in range(len(detailed))]
+                detailed['path_to_top_parent'] = detailed.apply(lambda row: f"{row['path_to_top_parent'].split('_')[0]},{row['shape_id']}", axis=1)
+                detailed['level'] = detailed['level'].astype(int)
 
                 self.results.append(detailed)
                 self.a_metrics.end_iteration()
@@ -80,6 +94,8 @@ class Harmonizer:
         except Exception as e:
             self.ui.stop()
             raise e
+
+        self.ui.stop()
 
         return gpd.GeoDataFrame(pd.concat(self.results), crs=self.coarse.crs)
 
@@ -97,7 +113,7 @@ class Harmonizer:
 
         while (
             stats["iterations"] < self.max_step_iterations
-            and stats["mergeable_area"] > 0.001
+            and (stats["mergeable_area"] > 0.0001 or stats["mergeable_percent"] > 0.0001)
         ):
             detailed = self.collapse_mergeable_geometries(detailed)
             detailed = self.fix_multipolygons(detailed)

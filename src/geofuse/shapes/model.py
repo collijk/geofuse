@@ -75,13 +75,13 @@ class AlgorithmMetrics:
             "parent_id": ({"header": "Parent ID"}, _identity),
             "reference_area_start": (None, None),
             "reference_percent_start": (None, None),
-            "mergeable_area_start": (None, None),
-            "mergeable_percent_start": (None, None),
-            "reference_area_end": (
-                {"header": "Reference", "justify": "right"},
-                _float(1),
+            "mergeable_area_start": (
+                {"header": "Mergeable Start", "justify": "right"},
+                _float(3, 1e-3),
             ),
-            "reference_percent_end": ({"header": "%"}, _float(1)),
+            "mergeable_percent_start": ({"header": "%"}, _float(3, 1e-3)),
+            "reference_area_end": (None, None),
+            "reference_percent_end": (None, None),
             "mergeable_area_end": (
                 {"header": "Mergeable", "justify": "right"},
                 _float(3, 1e-3),
