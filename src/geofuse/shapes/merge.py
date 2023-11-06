@@ -16,7 +16,7 @@ class PartitionedSchema(pa.DataFrameModel):
     geometry: GeoSeries
 
     class Config:
-        strict =  "filter"
+        strict = "filter"
 
 
 class StatisticsSchema(PartitionedSchema):
@@ -104,7 +104,7 @@ class CollapsedSchema(pa.DataFrameModel):
 
     class Config:
         strict = "filter"
-        
+
 
 def collapse_mergeable_geometries(
     gdf: gpd.GeoDataFrame,
@@ -124,12 +124,7 @@ def collapse_mergeable_geometries(
     overlap = pd.DataFrame({"merge_id": None, "overlap": 0.0}, index=mergeable.index)
     for merge_id, g in reference.set_index("merge_id").geometry.items():
         buffered_geom = g.buffer(buffer_size)
-
-        with warnings.catch_warnings():
-            # Ignore shapely warnings where we compute an intersection
-            # on geometries that don't intersect.
-            warnings.simplefilter("ignore")
-            shp_overlap = mergeable.intersection(buffered_geom)
+        shp_overlap = qintersection(mergeable, buffered_geom)
 
         overlap_proportion = shp_overlap.area / mergeable.area
         new_match = overlap_proportion > overlap.overlap
@@ -146,83 +141,46 @@ def collapse_mergeable_geometries(
     reference: gpd.GeoDataFrame = CollapsedSchema.validate(reference)  # type: ignore
     return reference
 
-###################
 
-
-def qintersection(left, right):
-    with warnings.catch_warnings():
-        # Ignore shapely warnings where we compute an intersection
-        # on geometries that don't intersect.
-        warnings.simplefilter("ignore")
-        intersection = left.intersection(right)
-    return intersection
-
-
-def get_processable(m, r):
-    mergeable = m.copy()
-    mergeable['ref_neighbors'] = 0
-    for ref_geom in r['geometry']:
-        mask = mergeable.buffer(10).overlaps(ref_geom)
-        mergeable.loc[mask, 'ref_neighbors'] += 1
-
-    max_neighbors = mergeable.ref_neighbors.max()
-    to_process = mergeable.ref_neighbors == max_neighbors    
-    return max_neighbors, mergeable[to_process], mergeable[~to_process]
-
-def process_neighbors(r, p):
-    reference = r.copy()
-
-    for i in range(len(p)):
-        merge_geom = p.iloc[[i]]
-        
-        triangulation = merge_geom.overlay(
-            merge_geom.delaunay_triangles().explode(index_parts=False).to_frame(),
-            how='identity',
-            keep_geom_type=True,
-        )
-    
-        for g in triangulation.geometry:
-            overlap = qintersection(reference, g.buffer(10)).area
-            if overlap.max() == 0:
-                raise ValueError()
-            merge_index = overlap.sort_values().index[-1]            
-            reference.loc[merge_idx, 'geometry'] = reference.loc[merge_idx, 'geometry'].union(g)
-    return reference
-
-def simple_merge(geometries, threshold = 0.5, neighbor_count = 2):
+def simple_merge(
+    geometries: gpd.GeoDataFrame,
+    threshold: float = 0.5,
+    neighbor_count: int = 2,
+) -> gpd.GeoDataFrame:
     if not geometries.mergeable.any():
         return geometries
-        
+
     gdf = geometries.copy()
-
-    sindex = gdf.sindex
-
-    # Split data into reference geoms (geoms we merge to)
-    # and mergeable geoms (geoms we merge)
-    reference = gdf.loc[~gdf.mergeable].copy()
     mergeable = gdf.loc[gdf.mergeable].copy()
-    
-    neighbors = []
+
+    neighbors_list = []
     for aid, row in mergeable.iterrows():
-        g = row['geometry']
-        n = gdf.iloc[sindex.query(g)].drop(aid)
-        n['nid'] = aid
-        n['overlap'] = n.intersection(g.buffer(1)).area    
-        n['p_overlap'] = n['overlap'] / n['overlap'].sum()
-        n['n_count'] = len(n[n['p_overlap'] > 0.01])
+        g = row["geometry"]
+        n = gdf.iloc[gdf.sindex.query(g)].drop(aid)
+        n["nid"] = aid
+        n["overlap"] = n.intersection(g.buffer(1)).area
+        n["p_overlap"] = n["overlap"] / n["overlap"].sum()
+        n["n_count"] = len(n[n["p_overlap"] > 0.01])
         if g.area <= 1e-3:
-            n['p_overlap'] = 0.
-            n['very_small'] = [True] + [False]*(len(n) - 1)
+            n["p_overlap"] = 0.0
+            n["very_small"] = [True] + [False] * (len(n) - 1)
         else:
-            n['very_small'] = False
-        neighbors.append(n)
-    neighbors = pd.concat(neighbors)
-    
-    max_p = neighbors.groupby('nid')['p_overlap'].transform("max")
+            n["very_small"] = False
+        neighbors_list.append(n)
+    neighbors = pd.concat(neighbors_list)
+
+    max_p = neighbors.groupby("nid")["p_overlap"].transform("max")
     threshold = np.maximum(max_p, threshold)
-    
-    meets_criteria = (neighbors['p_overlap'] >= threshold) & (neighbors['n_count'] <= neighbor_count)    
-    merge_map = neighbors[neighbors['very_small'] | meets_criteria].reset_index().set_index('nid').alg_id
+
+    meets_criteria = (neighbors["p_overlap"] >= threshold) & (
+        neighbors["n_count"] <= neighbor_count
+    )
+    merge_map = (
+        neighbors[neighbors["very_small"] | meets_criteria]
+        .reset_index()
+        .set_index("nid")
+        .alg_id
+    )
     drop = []
     areas = gdf.area.loc[merge_map.index]
     for idx, val in merge_map.items():
@@ -230,29 +188,33 @@ def simple_merge(geometries, threshold = 0.5, neighbor_count = 2):
             if areas.loc[idx] > areas.loc[val]:
                 drop.append(val)
             else:
-                drop.append(idx)    
+                drop.append(idx)
     merge_map = merge_map.drop(drop)
-    
-    assert not merge_map.index.duplicated().any()    
-    gdf.loc[merge_map.index, 'merge_id'] = merge_map
-    
-    new_gdf = gdf.sort_values(['mergeable', 'shape_name']).dissolve(by='merge_id').reset_index()
-    
-    new_gdf['geometry'] = new_gdf['geometry'].buffer(1).buffer(-1)
-    new_gdf['alg_id'] = new_gdf['merge_id']
-    new_gdf = new_gdf.set_index('alg_id')
+
+    assert not merge_map.index.duplicated().any()
+    gdf.loc[merge_map.index, "merge_id"] = merge_map
+
+    new_gdf = (
+        gdf.sort_values(["mergeable", "shape_name"])
+        .dissolve(by="merge_id")
+        .reset_index()
+    )
+
+    new_gdf["geometry"] = new_gdf["geometry"].buffer(1).buffer(-1)
+    new_gdf["alg_id"] = new_gdf["merge_id"]
+    new_gdf = new_gdf.set_index("alg_id")
     return new_gdf
-    
+
+
 def collapse_mergeable_geometries2(
     gdf: gpd.GeoDataFrame,
     buffer_size: float = 10.0,
 ) -> gpd.GeoDataFrame:
     gdf: gpd.GeoDataFrame = CollapsableSchema.validate(gdf)  # type: ignore
 
-
-    gdf['alg_id'] = list(range(len(gdf)))
-    gdf['merge_id'] = gdf['alg_id']
-    gdf = gdf.set_index('alg_id')
+    gdf["alg_id"] = list(range(len(gdf)))
+    gdf["merge_id"] = gdf["alg_id"]
+    gdf = gdf.set_index("alg_id")
 
     threshold = 0.5
     neighbors = 2
@@ -260,17 +222,11 @@ def collapse_mergeable_geometries2(
     new_gdf = simple_merge(gdf)
     merged = len(new_gdf) - len(gdf)
 
-    while gdf.mergeable.any():    
+    while gdf.mergeable.any():
         while merged:
-            # fig, ax = plt.subplots(figsize=(15, 15))
-            # new_gdf.plot(column='merge_id', cmap='tab20', categorical=True, ax=ax)
-            # gdf.boundary.plot(ax=ax, color='k', linewidth=0.3)
-            # new_gdf.boundary.plot(ax=ax, color='k', linewidth=2)
-            # ax.set_title(f'Merging {merged} Geometries')
-    
             gdf, new_gdf = new_gdf, simple_merge(new_gdf, threshold, neighbors)
             merged = len(new_gdf) - len(gdf)
-        
+
         if neighbors == 2:
             threshold = 0.7
             neighbors = 3
@@ -278,12 +234,11 @@ def collapse_mergeable_geometries2(
             if threshold > 0.4:
                 threshold *= 0.9
             else:
-                neighbors = np.inf
+                neighbors = 10000
                 threshold = 0.7
         else:
             threshold *= 0.9
-        # print(threshold, neighbors)
-    
+
         gdf, new_gdf = new_gdf, simple_merge(new_gdf, threshold, neighbors)
         merged = len(new_gdf) - len(gdf)
 
@@ -292,3 +247,11 @@ def collapse_mergeable_geometries2(
     gdf: gpd.GeoDataFrame = CollapsedSchema.validate(gdf)  # type: ignore
     return gdf
 
+
+def qintersection(left: gpd.GeoDataFrame, right: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    with warnings.catch_warnings():
+        # Ignore shapely warnings where we compute an intersection
+        # on geometries that don't intersect.
+        warnings.simplefilter("ignore")
+        intersection = left.intersection(right)
+    return intersection

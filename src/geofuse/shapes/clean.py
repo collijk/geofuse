@@ -83,18 +83,18 @@ def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         ref = working_set[ref_idx]
         other = working_set[other_idx]
 
-        # Remove overlaps with the reference geometry        
+        # Remove overlaps with the reference geometry
         new_other = filter_small_geoms(other.difference(ref))
 
-        if isinstance(new_other, MultiPolygon):                        
+        if isinstance(new_other, MultiPolygon):
             if (ref_idx, other_idx) in broken:
-                other_idx += 1                
+                other_idx += 1
             else:
                 working_set = gdf["geometry"].tolist()
                 ref = working_set[ref_idx]
                 other = working_set[other_idx]
                 new_ref = filter_small_geoms(ref.difference(other))
-                
+
                 working_set[ref_idx] = new_ref
                 gdf.geometry.iloc[ref_idx] = new_ref
 
@@ -120,9 +120,7 @@ def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return gdf
 
 
-    
-
-def filter_small_geoms(geom):
+def filter_small_geoms(geom: Polygon | MultiPolygon) -> Polygon | MultiPolygon:
     if isinstance(geom, Polygon):
         return geom
 
