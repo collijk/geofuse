@@ -1,10 +1,12 @@
 import geopandas as gpd
 import pandas as pd
 from loguru import logger
+from shapely.geometry import Polygon
 
 from geofuse.shapes.clean import fix_multipolygons, fix_overlapping_geometries
 from geofuse.shapes.merge import (
-    collapse_mergeable_geometries,
+    # collapse_mergeable_geometries,
+    collapse_mergeable_geometries2 as collapse_mergeable_geometries,
     determine_mergeable_geometries,
 )
 from geofuse.shapes.model import AlgorithmMetrics, PerformanceMetrics
@@ -76,6 +78,7 @@ class Harmonizer:
 
                 coarse = self.coarse[self.coarse["shape_id"] == parent_id]
                 detailed = partition[partition["parent_id"] == parent_id]
+
                 if detailed.mergeable.all():
                     detailed = detailed.dissolve(
                         by=["parent_id", "path_to_top_parent"]
@@ -84,10 +87,15 @@ class Harmonizer:
                     detailed["shape_name"] = coarse["shape_name"].iloc[0]
                     detailed["mergeable"] = False
 
-                detailed = self.collapse_geometries(coarse, detailed)
-                detailed = detailed.loc[~detailed.mergeable].drop(columns="mergeable")
+                collapsed = self.collapse_geometries(coarse, detailed)
+                collapsed = collapsed.loc[~collapsed.mergeable].drop(columns="mergeable")
 
-                detailed = self.correct_area(coarse, detailed)
+                corrected = self.correct_area(coarse, collapsed)
+
+                if corrected['geometry'].apply(lambda g: not isinstance(g, Polygon)).any():
+                    raise ValueError
+
+                detailed = corrected
 
                 parent_id = parent_id.split("_")[0]
                 detailed["parent_id"] = parent_id
@@ -95,12 +103,16 @@ class Harmonizer:
                     lambda s: s.split("_")[0]
                 )
                 detailed["level"] = detailed["level"].astype(int)
+                
 
                 self.results.append(detailed)
                 self.a_metrics.end_iteration()
                 self.ui.update()
         except Exception:
             self.ui.stop()
+            print('DUMPING')
+            for name, gdf in zip(['coarse', 'detailed', 'collapsed', 'corrected'], [coarse, detailed, collapsed, corrected]):
+                gdf.to_file(f'{name}.geojson')
             raise
 
         self.ui.stop()
@@ -143,6 +155,9 @@ class Harmonizer:
             detailed = self.determine_mergeable_geometries(detailed)
 
             stats = self.a_metrics.end_collapse(detailed)
+
+        if detailed['geometry'].apply(lambda g: not isinstance(g, Polygon)).any():
+            raise ValueError
 
         stats = self.a_metrics.end_collapse(detailed)
 

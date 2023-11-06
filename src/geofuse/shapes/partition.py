@@ -12,6 +12,9 @@ class DetailedSchema(pa.DataFrameModel):
     level: int
     geometry: GeoSeries
 
+    class Config:
+        strict = "filter"
+
 
 class CoarseSchema(pa.DataFrameModel):
     shape_id: str = pa.Field(unique=True)
@@ -19,6 +22,9 @@ class CoarseSchema(pa.DataFrameModel):
     path_to_top_parent: str = pa.Field(unique=True)
     level: int
     geometry: GeoSeries
+
+    class Config:
+        strict = "filter"
 
 
 class OutputSchema(pa.DataFrameModel):
@@ -28,6 +34,9 @@ class OutputSchema(pa.DataFrameModel):
     path_to_top_parent: str
     level: float = pa.Field(nullable=True, coerce=True)
     geometry: GeoSeries
+
+    class Config:
+        strict = 'filter'
 
 
 def partition_geometries(
@@ -57,7 +66,7 @@ def partition_geometries(
         A GeoDataFrame that partitions the coarse geometries.
     """
     coarse: gpd.GeoDataFrame = CoarseSchema.validate(coarse)  # type: ignore
-    detailed: gpd.GeoDataFrame = DetailedSchema.validate(detailed)  # type: ignore
+    detailed: gpd.GeoDataFrame = DetailedSchema.validate(detailed)  # type: ignore    
 
     @buffer_on_exception(GEOSException)
     def _overlay(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -66,6 +75,7 @@ def partition_geometries(
     union = _overlay(detailed)
     # Split up any multipolygons that were created by the overlay
     union = union.explode(index_parts=False).reset_index(drop=True)
+    union = union[union.area > 1e-3]
 
     column_map = {
         "shape_id_1": "parent_id",
@@ -74,7 +84,7 @@ def partition_geometries(
         "shape_name_2": "shape_name",
         "level_2": "level",
         "geometry": "geometry",
-    }
+    }    
     union = union.rename(columns=column_map)
 
     union: gpd.GeoDataFrame = OutputSchema.validate(union)  # type: ignore

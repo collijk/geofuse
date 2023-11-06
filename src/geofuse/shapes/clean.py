@@ -3,7 +3,7 @@ import numpy as np
 import pandera as pa
 from loguru import logger
 from pandera.typing.geopandas import GeoSeries
-from shapely.geometry import MultiPolygon
+from shapely.geometry import MultiPolygon, Polygon
 
 
 class MultiPolygonInSchema(pa.DataFrameModel):
@@ -83,32 +83,18 @@ def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         ref = working_set[ref_idx]
         other = working_set[other_idx]
 
-        # Remove overlaps with the reference geometry
-        other = other.difference(ref)
+        # Remove overlaps with the reference geometry        
+        new_other = filter_small_geoms(other.difference(ref))
 
-        if isinstance(other, MultiPolygon):
-            # If the other geometry is a multipolygon, the difference operation
-            # did something we didn't want.  We'll try to fix it by reversing
-            # the operation. This requires us to start over though as all other
-            # geometry differences are now potentially invalid
-
+        if isinstance(new_other, MultiPolygon):                        
             if (ref_idx, other_idx) in broken:
-                # We've tried to fix before, don't try again
-                logger.debug(
-                    f"Unable to fix multipolygon difference "
-                    f"between {ref_idx} and {other_idx}."
-                )
-                other_idx += 1
+                other_idx += 1                
             else:
-                logger.debug(
-                    f"Attempting to fix multipolygon difference "
-                    f"between {ref_idx} and {other_idx}."
-                )
                 working_set = gdf["geometry"].tolist()
                 ref = working_set[ref_idx]
                 other = working_set[other_idx]
-                new_ref = ref.difference(other)
-
+                new_ref = filter_small_geoms(ref.difference(other))
+                
                 working_set[ref_idx] = new_ref
                 gdf.geometry.iloc[ref_idx] = new_ref
 
@@ -118,7 +104,7 @@ def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         else:
             # If the other geometry is not a multipolygon, we can continue
             # with the difference operation
-            working_set[other_idx] = other
+            working_set[other_idx] = new_other
             other_idx += 1
 
         if other_idx == len(working_set):
@@ -132,3 +118,15 @@ def fix_overlapping_geometries(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gdf: gpd.GeoDataFrame = OverlapOutputSchema.validate(gdf)  # type: ignore
 
     return gdf
+
+
+    
+
+def filter_small_geoms(geom):
+    if isinstance(geom, Polygon):
+        return geom
+
+    geoms = [g for g in geom.geoms if g.area > 0.5]
+    if len(geoms) == 1:
+        return geoms[0]
+    return MultiPolygon(geoms)
